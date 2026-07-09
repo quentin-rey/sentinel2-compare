@@ -9,6 +9,9 @@
 export interface Translations {
   // Shared
   closeAriaLabel: string;
+  menuToggleTooltip: string;
+  compareSliderAriaLabel: string;
+  loadingExactDatesBanner: string;
 
   // Navbar
   navAbout: string;
@@ -144,6 +147,9 @@ export interface Translations {
 export const translations: Record<"fr" | "en", Translations> = {
   fr: {
     closeAriaLabel: "Fermer",
+    menuToggleTooltip: "Basculer le menu (touche M)",
+    compareSliderAriaLabel: "Curseur de comparaison",
+    loadingExactDatesBanner: "Chargement des dates exactes en cours… l'aperçu affiché peut être approximatif.",
     navAbout: "À propos",
     navShortcuts: "Raccourcis clavier",
     navInstanceIdActive: "Identifiant CDSE personnel actif",
@@ -269,6 +275,9 @@ export const translations: Record<"fr" | "en", Translations> = {
   },
   en: {
     closeAriaLabel: "Close",
+    menuToggleTooltip: "Toggle menu (M key)",
+    compareSliderAriaLabel: "Comparison slider",
+    loadingExactDatesBanner: "Loading exact dates… the preview shown may be approximate.",
     navAbout: "About",
     navShortcuts: "Keyboard shortcuts",
     navInstanceIdActive: "Personal CDSE ID active",

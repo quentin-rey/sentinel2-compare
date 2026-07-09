@@ -1,6 +1,7 @@
 import type { UseCompareMapsResult } from "../hooks/useCompareMaps";
 import type { RenderMode } from "../lib/config";
 import { CompareLabel } from "./CompareLabel";
+import { useTranslation } from "../hooks/useLanguage";
 
 interface Props {
   compare: UseCompareMapsResult;
@@ -8,6 +9,7 @@ interface Props {
 }
 
 export function CompareView({ compare, mode }: Props) {
+  const { t } = useTranslation();
   const {
     mapAContainerRef,
     mapBContainerRef,
@@ -41,7 +43,7 @@ export function CompareView({ compare, mode }: Props) {
         ref={swiperRef}
         tabIndex={0}
         role="slider"
-        aria-label="Curseur de comparaison"
+        aria-label={t("compareSliderAriaLabel")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={50}
@@ -49,7 +51,7 @@ export function CompareView({ compare, mode }: Props) {
       />
       <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
         <span className="banner-spinner" />
-        Chargement des dates exactes en cours… l'aperçu affiché peut être approximatif.
+        {t("loadingExactDatesBanner")}
       </div>
       <CompareLabel
         side="a"

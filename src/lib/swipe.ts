@@ -11,6 +11,12 @@ export interface CreateSwipeOptions {
 export interface SwipeControl {
   setPosition: (fraction: number) => void;
   getPosition: () => number;
+  // Removes every listener this instance attached — must be called before
+  // discarding a swipe control (a new compare run creates a fresh one on the
+  // same persistent #swiper/mapA/mapB-container elements, so without this
+  // each run would pile up another set of pointer/move listeners on top of
+  // the previous, still-attached ones).
+  destroy: () => void;
 }
 
 // Synchronizes two MapLibre maps and drives a draggable clip-path divider
@@ -30,8 +36,10 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     syncing = false;
   }
 
-  mapA.on("move", () => syncCamera(mapA, mapB));
-  mapB.on("move", () => syncCamera(mapB, mapA));
+  const onMoveA = () => syncCamera(mapA, mapB);
+  const onMoveB = () => syncCamera(mapB, mapA);
+  mapA.on("move", onMoveA);
+  mapB.on("move", onMoveB);
 
   let position = 0.5;
 
@@ -45,18 +53,29 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
   setPosition(0.5);
 
   let dragging = false;
-  sliderEl.addEventListener("pointerdown", (e) => {
+  const onPointerDown = (e: PointerEvent) => {
     dragging = true;
     sliderEl.setPointerCapture(e.pointerId);
-  });
-  sliderEl.addEventListener("pointerup", () => {
+  };
+  const onPointerUp = () => {
     dragging = false;
-  });
-  sliderEl.addEventListener("pointermove", (e) => {
+  };
+  const onPointerMove = (e: PointerEvent) => {
     if (!dragging) return;
     const rect = containerEl.getBoundingClientRect();
     setPosition((e.clientX - rect.left) / rect.width);
-  });
+  };
+  sliderEl.addEventListener("pointerdown", onPointerDown);
+  sliderEl.addEventListener("pointerup", onPointerUp);
+  sliderEl.addEventListener("pointermove", onPointerMove);
 
-  return { setPosition, getPosition: () => position };
+  function destroy() {
+    mapA.off("move", onMoveA);
+    mapB.off("move", onMoveB);
+    sliderEl.removeEventListener("pointerdown", onPointerDown);
+    sliderEl.removeEventListener("pointerup", onPointerUp);
+    sliderEl.removeEventListener("pointermove", onPointerMove);
+  }
+
+  return { setPosition, getPosition: () => position, destroy };
 }

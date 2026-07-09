@@ -399,7 +399,7 @@ export default function App() {
 
       <button
         id="menu-toggle"
-        title="Basculer le menu (touche M)"
+        title={t("menuToggleTooltip")}
         aria-expanded={!menu.collapsed}
         aria-controls="panel"
         onClick={menu.toggleMenu}

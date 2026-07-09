@@ -237,6 +237,7 @@ export function useCompareMaps() {
       setQuotaExceeded(false);
 
       const inst = instancesRef.current;
+      inst.swipe?.destroy();
       inst.mapA?.remove();
       inst.mapB?.remove();
       inst.swipe = null;
@@ -341,6 +342,7 @@ export function useCompareMaps() {
     setIsOpen(false);
     setIsResolving(false);
     const inst = instancesRef.current;
+    inst.swipe?.destroy();
     inst.mapA?.remove();
     inst.mapB?.remove();
     inst.mapA = null;
