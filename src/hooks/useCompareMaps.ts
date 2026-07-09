@@ -113,8 +113,18 @@ async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
  * pieces that actually drive JSX (open/resolving status, label text/
  * spinner, date-picker options) are real state.
  */
-export function useCompareMaps() {
+export interface UseCompareMapsOptions {
+  onMoveEnd?: () => void;
+}
+
+export function useCompareMaps(options?: UseCompareMapsOptions) {
   const { t, lang } = useTranslation();
+  // Read via a ref (not directly) inside runCompare's "moveend" handlers —
+  // `options` closes over live App state (current dates/mode) and would
+  // otherwise be frozen to whatever it was the one time runCompare's
+  // useCallback identity was last rebuilt.
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
   const mapAContainerRef = useRef<HTMLDivElement | null>(null);
   const mapBContainerRef = useRef<HTMLDivElement | null>(null);
   const mapBWrapRef = useRef<HTMLDivElement | null>(null);
@@ -289,6 +299,9 @@ export function useCompareMaps() {
       mapB.on("error", handleTileError);
       mapA.on("data", handleTileSuccess);
       mapB.on("data", handleTileSuccess);
+      const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
+      mapA.on("moveend", handleMoveEnd);
+      mapB.on("moveend", handleMoveEnd);
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 

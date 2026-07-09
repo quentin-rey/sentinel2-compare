@@ -25,9 +25,16 @@ export interface InitialView {
  * always-mounted div (never conditionally rendered — MapLibre needs a real
  * DOM node at construction time).
  */
-export function useBaseMap(initialView: InitialView, onLoad?: (map: MapLibreMap) => void) {
+export function useBaseMap(initialView: InitialView, onLoad?: (map: MapLibreMap) => void, onMoveEnd?: (map: MapLibreMap) => void) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  // The map itself is only ever constructed once, on mount (see below), but
+  // `onMoveEnd` closes over live App state (current dates/mode) that changes
+  // on every render — a ref keeps the "moveend" listener (attached once)
+  // always calling the *latest* version instead of the one captured at
+  // construction time.
+  const onMoveEndRef = useRef(onMoveEnd);
+  onMoveEndRef.current = onMoveEnd;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -40,6 +47,7 @@ export function useBaseMap(initialView: InitialView, onLoad?: (map: MapLibreMap)
     map.addControl(new maplibregl.NavigationControl(), "top-right");
     mapRef.current = map;
     if (onLoad) map.on("load", () => onLoad(map));
+    map.on("moveend", () => onMoveEndRef.current?.(map));
 
     return () => {
       map.remove();

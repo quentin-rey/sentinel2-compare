@@ -63,7 +63,12 @@ export default function App() {
       priority: (params.get("priority") as ScenePriority) || "closest",
       maxCloud: params.get("cc") || String(DEFAULT_MAX_CLOUD),
       windowDays: params.get("w") || String(DEFAULT_WINDOW_DAYS),
-      autoRun: params.has("d1") && params.has("d2"),
+      // Distinct from merely having d1/d2 (those are always present once the
+      // URL has ever been synced — see the effect below) — only re-run the
+      // comparison automatically if one was actually open when this URL was
+      // last written (by a refresh or by "Partage"), not just for every
+      // visit that happens to carry date params.
+      autoRun: params.get("cmp") === "1",
     };
   }, []);
 
@@ -105,14 +110,56 @@ export default function App() {
 
   // --- Maps -----------------------------------------------------------------
   const compareBusyRef = useRef(false);
-  const baseMap = useBaseMap({ center: initial.center, zoom: initial.zoom }, (map) => {
-    if (initial.autoRun) void handleCompare(map);
-  });
-  const compareMaps = useCompareMaps();
+  const baseMap = useBaseMap(
+    { center: initial.center, zoom: initial.zoom },
+    (map) => {
+      if (initial.autoRun) void handleCompare(map);
+    },
+    () => syncUrlToCurrentState(),
+  );
+  const compareMaps = useCompareMaps({ onMoveEnd: () => syncUrlToCurrentState() });
 
   function getActiveMap(): MapLibreMap | null {
     return compareMaps.instancesRef.current.mapA ?? baseMap.mapRef.current;
   }
+
+  // Builds the same lat/lng/zoom/dates/mode/... query params used both by
+  // the "Partage" link and by the continuous URL sync below, so a refresh
+  // (F5) restores the exact view instead of always resetting to Paris. `cmp`
+  // records whether a comparison was actually open, so reloading (or a
+  // shared link) only re-runs one when that was really the case.
+  function buildStateParams(map: MapLibreMap): URLSearchParams {
+    const center = map.getCenter();
+    const params = new URLSearchParams({
+      lat: center.lat.toFixed(5),
+      lng: center.lng.toFixed(5),
+      zoom: map.getZoom().toFixed(2),
+      d1: date1,
+      d2: date2,
+      mode,
+      priority,
+      cc: maxCloud,
+      w: windowDays,
+    });
+    if (compareMaps.isOpen) params.set("cmp", "1");
+    return params;
+  }
+
+  // Keeps the URL continuously in sync with the current view/dates/mode
+  // (via replaceState, so it never adds browser-history entries) — called on
+  // every map "moveend" and whenever the compare form or open/closed state
+  // changes, so a plain refresh always restores the last view.
+  function syncUrlToCurrentState() {
+    const map = getActiveMap();
+    if (!map) return;
+    const params = buildStateParams(map);
+    history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+  }
+
+  useEffect(() => {
+    syncUrlToCurrentState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date1, date2, mode, priority, maxCloud, windowDays, compareMaps.isOpen]);
 
   async function handleCompare(preferredMap?: MapLibreMap) {
     if (compareBusyRef.current) return;
@@ -316,18 +363,7 @@ export default function App() {
   async function handleShare() {
     const activeMap = getActiveMap();
     if (!activeMap) return;
-    const center = activeMap.getCenter();
-    const params = new URLSearchParams({
-      lat: center.lat.toFixed(5),
-      lng: center.lng.toFixed(5),
-      zoom: activeMap.getZoom().toFixed(2),
-      d1: date1,
-      d2: date2,
-      mode,
-      priority,
-      cc: maxCloud,
-      w: windowDays,
-    });
+    const params = buildStateParams(activeMap);
     const shareUrl = `${location.origin}${location.pathname}?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(shareUrl);

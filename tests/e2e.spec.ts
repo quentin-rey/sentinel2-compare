@@ -161,3 +161,27 @@ test("place search finds and selects a location", async ({ page }) => {
 
   await expect(page.locator("#place-search")).toHaveValue(/Lyon/);
 });
+
+test("a running compare survives a refresh, but plain browsing doesn't auto-compare", async ({ page }) => {
+  await page.goto("/");
+  await page.fill("#date1", "2026-06-01");
+  await page.fill("#date2", "2026-07-08");
+  await page.click("#compare-btn");
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await expect(page).toHaveURL(/cmp=1/);
+
+  await page.reload();
+  // The compare view should be visible immediately (before the exact-date
+  // lookup even resolves) — it was reconstructed from the URL, not left
+  // over from before the reload.
+  await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+
+  // Closing the comparison and reloading again should go back to plain
+  // browsing, not silently re-open it.
+  await page.click("#close-btn");
+  await expect(page).not.toHaveURL(/cmp=1/);
+  await page.reload();
+  await page.waitForTimeout(500);
+  await expect(page.locator("#compare")).toHaveClass(/hidden/);
+});
