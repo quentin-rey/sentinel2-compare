@@ -13,10 +13,11 @@ import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/expor
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
-import { TopBar } from "./components/TopBar";
-import { SearchOverlay } from "./components/SearchOverlay";
-import { SettingsSheet } from "./components/SettingsSheet";
-import { type ExportTarget } from "./components/ExportSection";
+import { PanelHeader } from "./components/PanelHeader";
+import { PlaceSearchSection } from "./components/PlaceSearchSection";
+import { CompareFormSection } from "./components/CompareFormSection";
+import { AccordionSection } from "./components/AccordionSection";
+import { ExportSection, type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
 import { InfoModal } from "./components/modals/InfoModal";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal";
@@ -74,8 +75,14 @@ export default function App() {
   const [exportTarget, setExportTarget] = useState<ExportTarget>("slide");
   const [status, setStatusState] = useState<{ message: string; isError: boolean }>({ message: "", isError: false });
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const settingsBtnRef = useRef<HTMLButtonElement>(null);
+  // Accordion sections: independent, not mutually exclusive — "Dates &
+  // rendu" starts open since running a compare is the primary action;
+  // "Export" auto-opens once a compare succeeds (see effect below) since
+  // there's nothing to export before that.
+  const [lieuOpen, setLieuOpen] = useState(false);
+  const [datesOpen, setDatesOpen] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [partageOpen, setPartageOpen] = useState(false);
   const [pendingExportKind, setPendingExportKind] = useState<ExportKind | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [animatedBusy, setAnimatedBusy] = useState(false);
@@ -167,6 +174,13 @@ export default function App() {
     setMode(value);
     if (compareMaps.isOpen) compareMaps.changeMode(value);
   }
+
+  // Export has nothing to act on before a compare succeeds — open it
+  // automatically the moment one does, and collapse it again on close so it
+  // doesn't linger open and empty for the next session.
+  useEffect(() => {
+    setExportOpen(compareMaps.isOpen);
+  }, [compareMaps.isOpen]);
 
   // Sentinel Hub returns HTTP 429 once the (shared, by default) quota is
   // exhausted — surface that plainly instead of leaving blank tiles with no
@@ -342,10 +356,6 @@ export default function App() {
         if (e.key === "Escape") setActiveModal(null);
         return;
       }
-      if (settingsOpen) {
-        if (e.key === "Escape") setSettingsOpen(false);
-        return;
-      }
       if (e.key.toLowerCase() === "m" && !isFormField(e.target)) {
         menu.toggleMenu();
         return;
@@ -370,7 +380,7 @@ export default function App() {
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDiscardConfirm, pendingExportKind, activeModal, settingsOpen, compareMaps.isOpen, menu]);
+  }, [showDiscardConfirm, pendingExportKind, activeModal, compareMaps.isOpen, menu]);
 
   return (
     <>
@@ -390,52 +400,72 @@ export default function App() {
         ☰
       </button>
 
-      <TopBar
-        theme={theme.theme}
-        onCycleTheme={theme.cycleTheme}
-        onOpenInfo={() => setActiveModal("info")}
-        onOpenShortcuts={() => setActiveModal("shortcuts")}
-        onOpenInstanceId={() => setActiveModal("instance-id")}
-        hasCustomInstanceId={customInstanceId.trim().length > 0}
-        onGithubClick={() => showToast("Lien GitHub à venir.")}
-        date1={date1}
-        date2={date2}
-        onDate1Change={setDate1}
-        onDate2Change={setDate2}
-        mode={mode}
-        onModeChange={handleModeChange}
-        isComparing={compareMaps.isOpen}
-        onCompare={() => void handleCompare()}
-        onClose={handleClose}
-        onOpenSettings={() => setSettingsOpen(true)}
-        settingsBtnRef={settingsBtnRef}
-        status={status}
-        collapsed={menu.collapsed}
-      />
-      {!menu.collapsed && (
-        <SearchOverlay query={place.query} onQueryChange={place.setQuery} results={place.results} onSelect={handleSelectPlace} onDismiss={place.clear} />
-      )}
+      <div id="panel" className={menu.collapsed ? "collapsed" : ""}>
+        <PanelHeader
+          theme={theme.theme}
+          onCycleTheme={theme.cycleTheme}
+          onOpenInfo={() => setActiveModal("info")}
+          onOpenShortcuts={() => setActiveModal("shortcuts")}
+          onOpenInstanceId={() => setActiveModal("instance-id")}
+          hasCustomInstanceId={customInstanceId.trim().length > 0}
+          onGithubClick={() => showToast("Lien GitHub à venir.")}
+        />
 
-      <SettingsSheet
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        triggerRef={settingsBtnRef}
-        priority={priority}
-        onPriorityChange={setPriority}
-        maxCloud={maxCloud}
-        onMaxCloudChange={setMaxCloud}
-        windowDays={windowDays}
-        onWindowDaysChange={setWindowDays}
-        isComparing={compareMaps.isOpen}
-        exportTarget={exportTarget}
-        onExportTargetChange={setExportTarget}
-        onOpenExportModal={setPendingExportKind}
-        animatedBusy={animatedBusy}
-        progressText={progressText}
-        onShare={() => void handleShare()}
-        onOpenInstanceId={() => setActiveModal("instance-id")}
-        hasCustomInstanceId={customInstanceId.trim().length > 0}
-      />
+        <AccordionSection id="lieu-section" title="Lieu" open={lieuOpen} onToggle={setLieuOpen}>
+          <PlaceSearchSection
+            query={place.query}
+            onQueryChange={place.setQuery}
+            results={place.results}
+            onSelect={handleSelectPlace}
+            onDismiss={place.clear}
+          />
+        </AccordionSection>
+
+        <AccordionSection id="dates-section" title="Dates & rendu" open={datesOpen} onToggle={setDatesOpen}>
+          <CompareFormSection
+            date1={date1}
+            date2={date2}
+            onDate1Change={setDate1}
+            onDate2Change={setDate2}
+            mode={mode}
+            onModeChange={handleModeChange}
+            priority={priority}
+            onPriorityChange={setPriority}
+            maxCloud={maxCloud}
+            onMaxCloudChange={setMaxCloud}
+            windowDays={windowDays}
+            onWindowDaysChange={setWindowDays}
+            isComparing={compareMaps.isOpen}
+            onCompare={() => void handleCompare()}
+            onClose={handleClose}
+          />
+        </AccordionSection>
+
+        {compareMaps.isOpen && (
+          <AccordionSection id="export-section" title="Export" open={exportOpen} onToggle={setExportOpen}>
+            <ExportSection
+              exportTarget={exportTarget}
+              onExportTargetChange={setExportTarget}
+              onOpenExportModal={setPendingExportKind}
+              animatedBusy={animatedBusy}
+              progressText={progressText}
+            />
+          </AccordionSection>
+        )}
+
+        <AccordionSection id="partage-section" title="Partage" open={partageOpen} onToggle={setPartageOpen}>
+          <button id="share-btn" onClick={() => void handleShare()}>
+            Copier le lien de partage
+          </button>
+        </AccordionSection>
+
+        <div
+          id="status"
+          className={`${status.message ? "status-box " : ""}${status.isError ? "status-warning" : status.message ? "status-info" : ""}`}
+        >
+          {status.message}
+        </div>
+      </div>
 
       <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} />
       <ShortcutsModal open={activeModal === "shortcuts"} onClose={() => setActiveModal(null)} />

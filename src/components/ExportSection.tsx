@@ -3,7 +3,6 @@ import type { ExportKind } from "./modals/ExportSettingsModal";
 export type ExportTarget = "slide" | "before" | "after";
 
 interface Props {
-  visible: boolean;
   exportTarget: ExportTarget;
   onExportTargetChange: (value: ExportTarget) => void;
   onOpenExportModal: (kind: ExportKind) => void;
@@ -11,10 +10,9 @@ interface Props {
   progressText: string;
 }
 
-export function ExportSection({ visible, exportTarget, onExportTargetChange, onOpenExportModal, animatedBusy, progressText }: Props) {
+export function ExportSection({ exportTarget, onExportTargetChange, onOpenExportModal, animatedBusy, progressText }: Props) {
   return (
-    <section id="export-row" className={`panel-section${visible ? "" : " hidden"}`}>
-      <h2 className="section-title">Export</h2>
+    <>
       <label>
         Image
         <select id="export-target" value={exportTarget} onChange={(e) => onExportTargetChange(e.target.value as ExportTarget)}>
@@ -43,6 +41,6 @@ export function ExportSection({ visible, exportTarget, onExportTargetChange, onO
       <p id="export-progress" className={`field-hint${animatedBusy ? "" : " hidden"}`}>
         {progressText}
       </p>
-    </section>
+    </>
   );
 }

@@ -1,6 +1,5 @@
 :root {
   --bg-panel: rgba(255,255,255,0.95);
-  --bg-panel-solid: #ffffff;
   --text: #1c1c1e;
   --text-muted: #5a5a5e;
   --border: #ddd;
@@ -18,7 +17,6 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-panel: rgba(28,28,30,0.95);
-  --bg-panel-solid: #1c1c1e;
     --text: #f0f0f2;
     --text-muted: #a5a5aa;
     --border: #48484a;
@@ -38,7 +36,6 @@
    of the system setting, since [data-theme] adds specificity over bare :root. */
 :root[data-theme="light"] {
   --bg-panel: rgba(255,255,255,0.95);
-  --bg-panel-solid: #ffffff;
   --text: #1c1c1e;
   --text-muted: #5a5a5e;
   --border: #ddd;
@@ -55,7 +52,6 @@
 
 :root[data-theme="dark"] {
   --bg-panel: rgba(28,28,30,0.95);
-  --bg-panel-solid: #1c1c1e;
   --text: #f0f0f2;
   --text-muted: #a5a5aa;
   --border: #48484a;
@@ -345,16 +341,6 @@ html, body {
   color: var(--accent-contrast);
 }
 
-.panel-section {
-  margin-bottom: 14px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.panel-section:last-of-type {
-  border-bottom: none;
-}
-
 .section-title {
   font-size: 11px;
   font-weight: 700;
@@ -370,15 +356,13 @@ html, body {
   line-height: 1.4;
 }
 
-#panel label,
-#settings-sheet label {
+#panel label {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
 }
 
-#panel input, #panel select,
-#settings-sheet input, #settings-sheet select {
+#panel input, #panel select {
   display: block;
   width: 100%;
   margin-top: 3px;
@@ -391,8 +375,7 @@ html, body {
   border-radius: 4px;
 }
 
-#panel button,
-#settings-sheet button {
+#panel button {
   width: 100%;
   padding: 8px;
   margin-top: 4px;
@@ -404,8 +387,7 @@ html, body {
   cursor: pointer;
 }
 
-#panel button.btn-secondary,
-#settings-sheet button.btn-secondary {
+#panel button.btn-secondary {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-weight: 500;
@@ -418,27 +400,23 @@ html, body {
   color: var(--secondary-text);
 }
 
-#panel button#share-btn,
-#settings-sheet button#share-btn {
+#panel button#share-btn {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   margin-top: 8px;
 }
 
-#panel .row,
-#settings-sheet .row {
+#panel .row {
   display: flex;
   gap: 8px;
 }
 
-#panel .row label,
-#settings-sheet .row label {
+#panel .row label {
   flex: 1;
   min-width: 0;
 }
 
-#panel .row button,
-#settings-sheet .row button {
+#panel .row button {
   flex: 1;
 }
 
@@ -715,138 +693,43 @@ kbd {
   border-bottom: none;
 }
 
-/* --- Compact top bar: date/mode row + gear button --------------------- */
+/* --- Accordion sections (Lieu / Dates & rendu / Export / Partage) ------ */
 
-.topbar-mode {
-  align-items: center;
+.accordion-section {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.topbar-mode-label {
-  flex: 1;
+.accordion-section:last-of-type {
   margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
 }
 
-#panel .topbar-mode button#settings-btn {
-  flex: none;
-  width: 34px;
-  padding: 4px;
-  margin-top: 0;
-  background: var(--secondary-bg);
-  color: var(--secondary-text);
-  font-size: 15px;
-  line-height: 1;
-}
-
-/* --- Floating search: collapsed icon expanding into input + dropdown -- */
-
-#search-overlay {
-  position: absolute;
-  top: 110px;
-  right: 12px;
-  z-index: 25;
-}
-
-#search-toggle-btn {
-  width: 38px;
-  height: 38px;
-  border: none;
-  border-radius: 8px;
-  background: var(--bg-panel);
-  color: var(--text);
-  font-size: 15px;
+.accordion-section > summary {
   cursor: pointer;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+  margin: 0 0 8px;
+  list-style: none;
 }
 
-#search-overlay.open #search-toggle-btn {
-  background: var(--accent);
-  color: var(--accent-contrast);
+.accordion-section > summary::-webkit-details-marker {
+  display: none;
 }
 
-#search-panel {
-  position: absolute;
-  top: 44px;
-  right: 0;
-  width: 240px;
-  background: var(--bg-panel);
-  border-radius: 8px;
-  padding: 10px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+.accordion-section > summary::before {
+  content: "▸";
+  display: inline-block;
+  width: 1em;
+  color: var(--text-muted);
 }
 
-#search-panel input {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  padding: 6px 8px;
-  font-size: 13px;
-  background: var(--page-bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+.accordion-section[open] > summary::before {
+  content: "▾";
 }
 
-#search-panel #place-results {
-  margin: 8px 0 0;
-}
-
-/* --- Settings sheet: slide-in drawer, not a dimmed modal --------------- */
-
-#settings-sheet-wrap {
-  position: fixed;
-  top: 0;
-  right: 0;
-  height: 100vh;
-  z-index: 30;
-  pointer-events: none;
-}
-
-#settings-sheet {
-  position: relative;
-  pointer-events: auto;
-  width: 320px;
-  max-width: 90vw;
-  height: 100%;
-  overflow-y: auto;
-  /* Solid, not the translucent --bg-panel: on mobile this sheet stacks
-     directly over the (also translucent) top bar rather than just the map,
-     and 0.95 alpha was letting the bar's text ghost through underneath. */
-  background: var(--bg-panel-solid);
-  color: var(--text);
-  font-size: 13px;
-  padding: 16px;
-  box-sizing: border-box;
-  box-shadow: -2px 0 14px rgba(0,0,0,0.3);
-  transform: translateX(100%);
-  transition: transform 0.25s ease;
-}
-
-#settings-sheet-wrap.open #settings-sheet {
-  transform: translateX(0);
-}
-
-.settings-sheet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.settings-sheet-header h2 {
-  font-size: 16px;
-  margin: 0;
-}
-
-#settings-sheet .settings-sheet-header button.modal-close {
-  position: static;
-  width: 28px;
-  height: 28px;
-  padding: 0;
-  margin-top: 0;
-  border-radius: 50%;
-  background: var(--secondary-bg);
-  color: var(--secondary-text);
-  font-weight: normal;
+.accordion-section[open] > summary {
+  margin-bottom: 10px;
 }
 
 @media (max-width: 640px) {
