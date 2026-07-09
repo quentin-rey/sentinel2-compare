@@ -1,0 +1,38 @@
+import { useEffect } from "react";
+import { useLocalStorageState } from "./useLocalStorageState";
+
+export type Theme = "auto" | "light" | "dark";
+
+const THEME_KEY = "s2compare-theme";
+
+// U+FE0E forces monochrome "text" glyph rendering instead of a colorful
+// emoji, matching the other monochrome icon buttons (ⓘ, ?, GitHub).
+export const THEME_ICON: Record<Theme, string> = {
+  auto: "◐︎",
+  light: "☀︎",
+  dark: "☾︎",
+};
+
+export const THEME_LABEL: Record<Theme, string> = {
+  auto: "auto (système)",
+  light: "clair",
+  dark: "sombre",
+};
+
+export function useTheme() {
+  const [theme, setTheme] = useLocalStorageState(THEME_KEY, "auto");
+
+  useEffect(() => {
+    if (theme === "light" || theme === "dark") {
+      document.documentElement.setAttribute("data-theme", theme);
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+  }, [theme]);
+
+  function cycleTheme() {
+    setTheme((current) => (current === "auto" ? "light" : current === "light" ? "dark" : "auto"));
+  }
+
+  return { theme: theme as Theme, cycleTheme };
+}
