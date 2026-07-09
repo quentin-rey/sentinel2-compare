@@ -23,6 +23,21 @@ test("runs a full compare and the slider drags without horizontal overflow", asy
     timeout: 20000,
   });
 
+  // Regression check: the compare-view maps are constructed synchronously
+  // while #compare's "hidden" class hasn't been committed to the DOM yet
+  // (no `await` runs between setIsOpen(true) and `new maplibregl.Map(...)`),
+  // so without an explicit resize() once the container is actually visible,
+  // MapLibre keeps whatever (possibly zero) size it measured at
+  // construction time — each canvas should fill the viewport, not just a
+  // small corner of it.
+  const viewport = page.viewportSize()!;
+  const canvasSizes = await page.evaluate(() => {
+    const dims = (el: Element | null) => (el instanceof HTMLCanvasElement ? { w: el.clientWidth, h: el.clientHeight } : null);
+    return { a: dims(document.querySelector("#map-a canvas")), b: dims(document.querySelector("#map-b canvas")) };
+  });
+  expect(canvasSizes.a).toEqual({ w: viewport.width, h: viewport.height });
+  expect(canvasSizes.b).toEqual({ w: viewport.width, h: viewport.height });
+
   const swiper = page.locator("#swiper");
   const box = (await swiper.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);

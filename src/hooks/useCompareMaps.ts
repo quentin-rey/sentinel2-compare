@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 import { wmtsTileUrl, dayRange, SH_WMTS_HOST } from "../lib/wmts";
 import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "../lib/stacInfo";
@@ -143,6 +143,23 @@ export function useCompareMaps() {
   const [renderStateA, setRenderStateA] = useState<SideRenderState | null>(null);
   const [renderStateB, setRenderStateB] = useState<SideRenderState | null>(null);
   const [lastOpts, setLastOpts] = useState<CompareOpts | null>(null);
+
+  // mapA/mapB are constructed synchronously inside runCompare(), in the same
+  // tick as the setIsOpen(true) call that removes the "hidden" class from
+  // #compare — but React doesn't commit that DOM change until *after* this
+  // synchronous code finishes (there's no `await` before the map
+  // constructors run). So at construction time the container is still
+  // display:none (zero size), and MapLibre's `trackResize` only listens for
+  // actual window resize events — it has no way to notice its container
+  // silently became visible. Once this effect runs (after the "hidden"
+  // class removal has actually been committed and painted), the container
+  // has its real size, and an explicit resize() re-measures it correctly.
+  useEffect(() => {
+    if (!isOpen) return;
+    const inst = instancesRef.current;
+    inst.mapA?.resize();
+    inst.mapB?.resize();
+  }, [isOpen]);
 
   const addCompareLayer = useCallback(
     (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, requestedDate: string, info: SceneInfoLike, opts: CompareOpts) => {
