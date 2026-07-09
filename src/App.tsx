@@ -394,7 +394,6 @@ export default function App() {
         onOpenShortcuts={() => setActiveModal("shortcuts")}
         onOpenInstanceId={() => setActiveModal("instance-id")}
         hasCustomInstanceId={customInstanceId.trim().length > 0}
-        onGithubClick={() => showToast(t("navGithubComingSoon"))}
       />
 
       <button

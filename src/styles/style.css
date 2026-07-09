@@ -405,7 +405,7 @@ html, body {
 /* Fixed square footprint so every icon button — text glyph, emoji, or SVG —
    reads as the same visual weight instead of shrink-wrapping to whatever
    width/height its own content happens to need. */
-#navbar button {
+#navbar button, #navbar a#github-btn {
   width: 34px;
   height: 34px;
   flex: none;
@@ -421,9 +421,10 @@ html, body {
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  text-decoration: none;
 }
 
-#navbar button svg {
+#navbar button svg, #navbar a#github-btn svg {
   width: 15px;
   height: 15px;
 }
@@ -829,7 +830,7 @@ kbd {
      is more specific than a bare #id selector, so hiding these needs to
      match at least as specifically or it silently loses the cascade. */
   #navbar button#shortcuts-btn,
-  #navbar button#github-btn {
+  #navbar a#github-btn {
     display: none;
   }
 

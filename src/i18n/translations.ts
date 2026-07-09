@@ -18,7 +18,7 @@ export interface Translations {
   navShortcuts: string;
   navInstanceIdActive: string;
   navInstanceIdInactive: string;
-  navGithubComingSoon: string;
+  navGithub: string;
   navThemeTooltip: (p: { themeLabel: string }) => string;
   themeLabelAuto: string;
   themeLabelLight: string;
@@ -154,7 +154,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     navShortcuts: "Raccourcis clavier",
     navInstanceIdActive: "Identifiant CDSE personnel actif",
     navInstanceIdInactive: "Utiliser mon propre identifiant CDSE (quota)",
-    navGithubComingSoon: "Code source (lien à venir)",
+    navGithub: "Code source (GitHub)",
     navThemeTooltip: ({ themeLabel }) => `Thème : ${themeLabel} — cliquer pour changer`,
     themeLabelAuto: "auto (système)",
     themeLabelLight: "clair",
@@ -282,7 +282,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     navShortcuts: "Keyboard shortcuts",
     navInstanceIdActive: "Personal CDSE ID active",
     navInstanceIdInactive: "Use my own CDSE ID (quota)",
-    navGithubComingSoon: "Source code (link coming soon)",
+    navGithub: "Source code (GitHub)",
     navThemeTooltip: ({ themeLabel }) => `Theme: ${themeLabel} — click to change`,
     themeLabelAuto: "auto (system)",
     themeLabelLight: "light",
