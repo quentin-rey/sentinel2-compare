@@ -1,6 +1,6 @@
-export function formatDate(iso: string): string {
+export function formatDate(iso: string, lang: "fr" | "en" = "fr"): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
-  return `${d}/${m}/${y}`;
+  return lang === "en" ? `${m}/${d}/${y}` : `${d}/${m}/${y}`;
 }
 
 export function slug(value: string): string {

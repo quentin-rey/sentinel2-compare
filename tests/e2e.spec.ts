@@ -9,6 +9,23 @@ test("app loads without console errors", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("FR/EN toggle switches visible strings and persists across reload", async ({ page }) => {
+  await page.goto("/");
+
+  // Force a known starting language rather than relying on the
+  // browser-detected default (Playwright's default locale is en-US).
+  await page.click(".lang-toggle button:has-text('FR')");
+  await expect(page.locator("#compare-btn")).toHaveText("Comparer");
+  await expect(page.locator("#dates-section > summary")).toHaveText("Dates & rendu");
+
+  await page.click(".lang-toggle button:has-text('EN')");
+  await expect(page.locator("#compare-btn")).toHaveText("Compare");
+  await expect(page.locator("#dates-section > summary")).toHaveText("Dates & render");
+
+  await page.reload();
+  await expect(page.locator("#compare-btn")).toHaveText("Compare");
+});
+
 test("the panel actually collapses via the ☰ button and the M shortcut", async ({ page }) => {
   await page.goto("/");
   await expect(page.locator("#panel")).not.toHaveClass(/collapsed/);
@@ -34,7 +51,10 @@ test("runs a full compare and the slider drags without horizontal overflow", asy
   // resolves) — both map canvases should be visible right away.
   await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
 
-  await page.waitForFunction(() => document.getElementById("status")?.textContent?.includes("nuages"), {
+  // Language-agnostic: the scene description reads "nuages 34%, ..." in
+  // French or "clouds 34%, ..." in English depending on the detected/chosen
+  // UI language, so match the shared numeric pattern instead of the word.
+  await page.waitForFunction(() => /\d+%,/.test(document.getElementById("status")?.textContent ?? ""), {
     timeout: 20000,
   });
 
@@ -43,15 +63,16 @@ test("runs a full compare and the slider drags without horizontal overflow", asy
   // (no `await` runs between setIsOpen(true) and `new maplibregl.Map(...)`),
   // so without an explicit resize() once the container is actually visible,
   // MapLibre keeps whatever (possibly zero) size it measured at
-  // construction time — each canvas should fill the viewport, not just a
-  // small corner of it.
+  // construction time — each canvas should fill the compare view (viewport
+  // minus the fixed navbar at the top), not just a small corner of it.
   const viewport = page.viewportSize()!;
+  const navbarHeight = await page.evaluate(() => document.getElementById("navbar")!.getBoundingClientRect().height);
   const canvasSizes = await page.evaluate(() => {
     const dims = (el: Element | null) => (el instanceof HTMLCanvasElement ? { w: el.clientWidth, h: el.clientHeight } : null);
     return { a: dims(document.querySelector("#map-a canvas")), b: dims(document.querySelector("#map-b canvas")) };
   });
-  expect(canvasSizes.a).toEqual({ w: viewport.width, h: viewport.height });
-  expect(canvasSizes.b).toEqual({ w: viewport.width, h: viewport.height });
+  expect(canvasSizes.a).toEqual({ w: viewport.width, h: viewport.height - navbarHeight });
+  expect(canvasSizes.b).toEqual({ w: viewport.width, h: viewport.height - navbarHeight });
 
   const swiper = page.locator("#swiper");
   const box = (await swiper.boundingBox())!;
@@ -88,7 +109,10 @@ test("exports a PNG with the expected filename pattern", async ({ page }) => {
   await page.fill("#date1", "2026-06-01");
   await page.fill("#date2", "2026-07-08");
   await page.click("#compare-btn");
-  await page.waitForFunction(() => document.getElementById("status")?.textContent?.includes("nuages"), {
+  // Language-agnostic: the scene description reads "nuages 34%, ..." in
+  // French or "clouds 34%, ..." in English depending on the detected/chosen
+  // UI language, so match the shared numeric pattern instead of the word.
+  await page.waitForFunction(() => /\d+%,/.test(document.getElementById("status")?.textContent ?? ""), {
     timeout: 20000,
   });
 

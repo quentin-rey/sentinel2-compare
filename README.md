@@ -1,64 +1,65 @@
 # Sentinel-2 Compare
 
-App pour comparer deux images satellite Sentinel-2 à des dates différentes,
-sur la même zone, avec un slider de comparaison géoréférencé (pan/zoom
-synchronisés). React + TypeScript + Vite, déployée en site statique sur
-GitHub Pages — aucun backend applicatif.
+App for comparing two Sentinel-2 satellite images at different dates over
+the same area, with a georeferenced comparison slider (synchronized
+pan/zoom). React + TypeScript + Vite, deployed as a static site on GitHub
+Pages — no application backend.
 
 ## Architecture
 
-- **UI** : React + TypeScript, buildée avec [Vite](https://vite.dev/).
-- **Carte** : [MapLibre GL JS](https://maplibre.org/) (aucune clé requise),
-  fond de carte OpenStreetMap pour la navigation.
-- **Imagerie Sentinel-2** : rendue côté serveur par le service **WMTS** de
+- **UI**: React + TypeScript, built with [Vite](https://vite.dev/).
+- **Map**: [MapLibre GL JS](https://maplibre.org/) (no key required),
+  OpenStreetMap basemap for navigation.
+- **Sentinel-2 imagery**: rendered server-side by the **WMTS** service of
   [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
-  (Sentinel Hub). Le frontend appelle directement ce WMTS depuis le
-  navigateur — pas de backend, déployable tel quel sur GitHub Pages.
-- **Métadonnées** (date réelle de l'acquisition, taux de nuages, détection
-  d'absence de données) : requêtes en lecture seule vers le
-  [catalogue OData de Copernicus Data Space Ecosystem](https://catalogue.dataspace.copernicus.eu/odata/v1/Products)
-  — la même source que celle qui alimente les tuiles WMTS, donc toujours
-  cohérente avec ce qui est réellement affiché.
-- **Recherche de lieu** : [Nominatim (OpenStreetMap)](https://nominatim.org/),
-  gratuit, sans clé.
-- **Swipe** : deux instances MapLibre superposées, synchronisées en caméra,
-  avec un `clip-path` CSS piloté par un slider glissable.
+  (Sentinel Hub). The frontend calls this WMTS directly from the browser —
+  no backend, deployable as-is on GitHub Pages.
+- **Metadata** (actual acquisition date, cloud cover, missing-data
+  detection): read-only requests to the
+  [Copernicus Data Space Ecosystem OData catalogue](https://catalogue.dataspace.copernicus.eu/odata/v1/Products)
+  — the same source that feeds the WMTS tiles, so it's always consistent
+  with what's actually displayed.
+- **Place search**: [Nominatim (OpenStreetMap)](https://nominatim.org/),
+  free, no key.
+- **Swipe**: two overlaid MapLibre instances, camera-synchronized, with a
+  CSS `clip-path` driven by a draggable slider.
 
-Aucun de ces services ne nécessite de secret côté client — tout tourne dans
-le navigateur.
+None of these services require a client-side secret — everything runs in
+the browser.
 
-### Structure du code
+### Code structure
 
 ```
 src/
-  lib/          fonctions pures / appels réseau (wmts, stacInfo, geocode,
-                exportImage, animatedExport, swipe, config) — aucune
-                dépendance à React
-  hooks/        useBaseMap, useCompareMaps (cœur de l'app : cycle de vie
-                des deux cartes MapLibre + slider), useTheme,
-                useMenuCollapsed, useToasts, useGeocodeSearch
-  components/   Panel, sections du formulaire, CompareView, modales
-  utils/        petits helpers de formatage
-tests/          suite Playwright (tests/e2e.spec.ts)
+  lib/          pure functions / network calls (wmts, stacInfo, geocode,
+                exportImage, animatedExport, swipe, config) — no
+                React dependency
+  hooks/        useBaseMap, useCompareMaps (the app's core: lifecycle of
+                the two MapLibre maps + slider), useTheme,
+                useMenuCollapsed, useToasts, useGeocodeSearch, useLanguage
+  i18n/         FR/EN translation dictionary
+  components/   Navbar, panel accordion sections, CompareView, modals
+  utils/        small formatting helpers
+tests/          Playwright suite (tests/e2e.spec.ts)
 ```
 
-## Modes de rendu
+## Render modes
 
-Définis comme "Layers" dans la configuration Sentinel Hub (voir plus bas) :
+Defined as "Layers" in the Sentinel Hub configuration (see below):
 
-| Mode dans l'app | Layer ID Sentinel Hub | Description |
+| Mode in the app | Sentinel Hub Layer ID | Description |
 |---|---|---|
-| True Color | `TRUE-COLOR` | Couleurs naturelles (B04/B03/B02) |
-| False Color | `FALSE-COLOR` | Végétation en rouge (B08/B04/B03) |
-| Highlight Optimized Natural Color | `TCO-L2A` | Courbe en racine cubique, hautes lumières préservées |
-| Wildfire | `WILDFIRE` | Template intégré Copernicus pour les feux/zones brûlées |
+| True Color | `TRUE-COLOR` | Natural colors (B04/B03/B02) |
+| False Color | `FALSE-COLOR` | Vegetation in red (B08/B04/B03) |
+| Highlight Optimized Natural Color | `TCO-L2A` | Cube-root curve, highlights preserved |
+| Wildfire | `WILDFIRE` | Built-in Copernicus template for fires/burned areas |
 
-## Configuration Copernicus Data Space Ecosystem (à faire une fois)
+## Copernicus Data Space Ecosystem setup (one-time)
 
-1. Créer un compte gratuit sur [dataspace.copernicus.eu](https://dataspace.copernicus.eu/).
-2. Aller sur le [Configuration Utility](https://shapps.dataspace.copernicus.eu/dashboard/#/configurations).
-3. **New Configuration** (basée sur un template Sentinel-2 L2A), lui donner un nom.
-4. Créer les layers listés ci-dessus (bouton **New Layer**), avec les evalscripts suivants :
+1. Create a free account on [dataspace.copernicus.eu](https://dataspace.copernicus.eu/).
+2. Go to the [Configuration Utility](https://shapps.dataspace.copernicus.eu/dashboard/#/configurations).
+3. **New Configuration** (based on a Sentinel-2 L2A template), give it a name.
+4. Create the layers listed above (**New Layer** button), with the following evalscripts:
 
 **`TRUE-COLOR`**
 ```js
@@ -82,7 +83,7 @@ function evaluatePixel(sample) {
 }
 ```
 
-**`TCO-L2A`** (Highlight Optimized Natural Color, script officiel Sentinel Hub par Marko Repše)
+**`TCO-L2A`** (Highlight Optimized Natural Color, official Sentinel Hub script by Marko Repše)
 ```js
 //VERSION=3
 function setup() {
@@ -98,112 +99,111 @@ function evaluatePixel(sample) {
 }
 ```
 
-**`WILDFIRE`** : layer de template intégré (pas de script à coller).
+**`WILDFIRE`**: built-in template layer (no script to paste).
 
-5. Récupérer l'**Instance ID** affiché dans le panneau de la configuration.
-6. Le coller dans [`src/lib/config.ts`](src/lib/config.ts) (`SH_INSTANCE_ID`), et
-   vérifier que `MODE_LAYERS` pointe vers les bons Layer IDs si tu les as
-   nommés différemment.
+5. Get the **Instance ID** shown in the configuration's panel.
+6. Paste it into [`src/lib/config.ts`](src/lib/config.ts) (`SH_INSTANCE_ID`),
+   and check that `MODE_LAYERS` points to the right Layer IDs if you named
+   them differently.
 
-⚠️ L'Instance ID est **public par nature** (il est embarqué dans le code
-frontend) — ce n'est pas un secret, mais **n'importe qui peut l'utiliser et
-consommer ton quota gratuit** s'il le récupère depuis le code source. Pas de
-restriction de domaine mise en place pour l'instant (voir "Limites connues").
-Chaque visiteur peut cependant renseigner son propre Instance ID depuis le
-bouton 🔑 de l'app pour ne pas dépendre du quota partagé (voir "Identifiant
-CDSE personnel (Bring Your Own ID)" ci-dessous).
+⚠️ The Instance ID is **public by nature** (it's embedded in the frontend
+code) — it's not a secret, but **anyone can use it and consume your free
+quota** by grabbing it from the source code. No domain restriction is set
+up for now (see "Known limitations"). Any visitor can however set their own
+Instance ID from the app's 🔑 button to avoid depending on the shared quota
+(see "Personal CDSE ID (Bring Your Own ID)" below).
 
-## Identifiant CDSE personnel (Bring Your Own ID)
+## Personal CDSE ID (Bring Your Own ID)
 
-Tous les visiteurs de l'app partagent par défaut le même Instance ID (donc le
-même quota gratuit Sentinel Hub). Si ce quota partagé est épuisé — l'app le
-détecte (HTTP 429) et affiche un message explicite au lieu de tuiles vides —
-ou si tu veux simplement ne jamais en dépendre, tu peux renseigner ton propre
-Instance ID :
+All visitors of the app share the same Instance ID by default (and
+therefore the same free Sentinel Hub quota). If that shared quota runs out
+— the app detects it (HTTP 429) and shows an explicit message instead of
+blank tiles — or if you just want to never depend on it, you can set your
+own Instance ID:
 
-1. Clique le bouton 🔑 dans l'en-tête de l'app (ou laisse-le s'ouvrir
-   automatiquement quand le quota partagé est détecté comme épuisé).
-2. Suis les instructions affichées dans la fenêtre : créer un compte CDSE
-   gratuit, créer une configuration, y créer les **4 mêmes layers que ceux
-   listés plus haut** (`TRUE-COLOR`, `FALSE-COLOR`, `TCO-L2A`, `WILDFIRE`,
-   avec les mêmes evalscripts) — sans ces layers aux mêmes noms, les tuiles
-   resteraient vides.
-3. Colle l'Instance ID de cette configuration dans le champ. Il est enregistré
-   uniquement en `localStorage`, sur cet appareil — jamais envoyé nulle part
-   d'autre que directement à Sentinel Hub, exactement comme l'Instance ID
-   partagé par défaut.
+1. Click the 🔑 button in the app's navbar (or let it open automatically
+   when the shared quota is detected as exhausted).
+2. Follow the instructions shown in the window: create a free CDSE
+   account, create a configuration, create the **same 4 layers listed
+   above** in it (`TRUE-COLOR`, `FALSE-COLOR`, `TCO-L2A`, `WILDFIRE`, with
+   the same evalscripts) — without these layers under the same names, the
+   tiles would stay blank.
+3. Paste that configuration's Instance ID into the field. It's stored only
+   in `localStorage`, on that device — never sent anywhere other than
+   directly to Sentinel Hub, exactly like the default shared Instance ID.
 
-Le bouton 🔑 devient bleu/actif quand un identifiant personnel est configuré ;
-un bouton "Revenir au quota partagé" dans la même fenêtre l'efface.
+The 🔑 button turns blue/active once a personal ID is set; a "Revert to
+shared quota" button in the same window clears it.
 
-## Lancer en local
+## Running locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Puis ouvrir l'URL affichée (le chemin inclut `/sentinel2-compare/`, voir
+Then open the printed URL (the path includes `/sentinel2-compare/`, see
 `vite.config.ts`).
 
-Autres commandes utiles :
+Other useful commands:
 
 ```bash
-npm run build       # build de production dans dist/
-npm run preview      # sert le build de production en local
+npm run build       # production build in dist/
+npm run preview      # serve the production build locally
 npm run lint         # oxlint
-npm run test:e2e     # suite Playwright (voir tests/e2e.spec.ts)
+npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
 ```
 
-## Déploiement (GitHub Pages)
+## Deployment (GitHub Pages)
 
-Automatisé via `.github/workflows/deploy.yml` : chaque push sur `main`
-build l'app et la déploie sur GitHub Pages via `actions/deploy-pages`.
+Automated via `.github/workflows/deploy.yml`: every push to `main` builds
+the app and deploys it to GitHub Pages via `actions/deploy-pages`.
 
-Étape unique à faire manuellement sur GitHub : Settings → Pages → Source =
-**GitHub Actions** (pas "Deploy from a branch").
+One manual step required on GitHub: Settings → Pages → Source =
+**GitHub Actions** (not "Deploy from a branch").
 
-Le chemin de base (`base` dans `vite.config.ts`) est calé sur le nom du
-dépôt (`/sentinel2-compare/`) — à adapter si le dépôt est renommé ou si
-l'app est servie à la racine d'un site utilisateur/organisation.
+The base path (`base` in `vite.config.ts`) is set to match the repo name
+(`/sentinel2-compare/`) — adjust it if the repo is renamed or if the app is
+served at the root of a user/organization site.
 
-## Fonctionnalités
+## Features
 
-- Comparaison swipe géoréférencée (pan/zoom synchronisés entre les deux dates)
-- Aperçu instantané pendant la résolution de la date exacte (bandeau de
-  chargement explicite), pour ne jamais laisser un écran vide
-- 4 modes de rendu (True Color, False Color, HONC, Wildfire)
-- Priorité de sélection "date la plus proche" (préférence, pas exclusion,
-  sur le seuil de nuages — pour ne jamais masquer une scène enfumée) ou
-  "moins nuageux"
-- Sélecteur manuel de date par côté quand la zone chevauche plusieurs dalles
-  Sentinel-2 imagées à des jours différents
-- Recherche de lieu (geocoding)
-- Affichage de la date réelle et du taux de nuages de la scène trouvée
-- Détection et message clair si aucune image n'est disponible pour les critères choisis
-- Partage par URL (lieu + dates + mode + réglages)
-- Export PNG/JPEG/GIF/WebM avec réglages (taille, qualité, durée/fluidité pour
-  les animations, nom de fichier), bulles d'info datées gravées dans l'export
-- Thème clair/sombre/auto, menu repliable, raccourcis clavier
-- Détection du quota d'imagerie épuisé (plusieurs HTTP 429 consécutifs côté
-  Sentinel Hub, pour ne pas confondre avec une simple limitation de débit
-  passagère), avec message explicite au lieu de tuiles vides silencieuses
-- Fenêtre dédiée "Identifiant CDSE personnel" (bouton 🔑, s'ouvre aussi
-  automatiquement en cas de quota épuisé) pour utiliser son propre quota
-  gratuit plutôt que le quota partagé par défaut (stocké en local, jamais
-  envoyé nulle part) — voir la section dédiée plus bas
+- Georeferenced swipe comparison (synchronized pan/zoom between the two dates)
+- Instant preview while the exact date resolves (explicit loading banner),
+  so there's never an empty screen
+- 4 render modes (True Color, False Color, HONC, Wildfire)
+- "Closest date" selection priority (a preference, not an exclusion, on the
+  cloud-cover threshold — so a smoky scene is never hidden) or
+  "least cloudy"
+- Manual per-side date picker when the area spans multiple Sentinel-2 tiles
+  imaged on different days
+- Place search (geocoding)
+- Displays the actual date and cloud cover of the found scene
+- Clear detection and message if no image is available for the chosen criteria
+- Share via URL (place + dates + mode + settings)
+- PNG/JPEG/GIF/WebM export with settings (size, quality, duration/smoothness
+  for animations, filename), dated info bubbles burned into the export
+- Light/dark/auto theme, collapsible panel, keyboard shortcuts, FR/EN
+  language toggle
+- Detection of exhausted imagery quota (several consecutive HTTP 429s from
+  Sentinel Hub, to avoid confusing it with a transient rate limit), with an
+  explicit message instead of silently blank tiles
+- Dedicated "Personal CDSE ID" window (🔑 button, also opens automatically
+  when the quota runs out) to use your own free quota instead of the shared
+  default one (stored locally, never sent anywhere) — see the dedicated
+  section above
 
-## Limites connues
+## Known limitations
 
-- **Quota partagé** : l'Instance ID Sentinel Hub par défaut est visible dans
-  le code source et n'est pas protégé — un usage abusif par un tiers
-  consommerait le quota gratuit du compte. L'app détecte le cas (plusieurs
-  HTTP 429 consécutifs) et invite à renseigner un identifiant personnel
-  (voir "Identifiant CDSE personnel" plus haut) plutôt que de laisser des
-  tuiles vides sans explication, mais rien n'empêche encore l'abus lui-même
-  côté serveur (pas de restriction de domaine ni de proxy).
-- **Nominatim** : rate-limité (~1 req/s), sans clé — suffisant pour un usage
-  perso mais pas pour un trafic important.
-- **Export image** : capture exactement ce qui est affiché à l'écran (à la
-  résolution choisie dans la modale d'export), pas une image satellite haute
-  résolution indépendante du rendu de la carte.
+- **Shared quota**: the default Sentinel Hub Instance ID is visible in the
+  source code and unprotected — abuse by a third party would consume the
+  account's free quota. The app detects this case (several consecutive
+  HTTP 429s) and invites the visitor to set a personal ID (see "Personal
+  CDSE ID" above) instead of leaving blank tiles with no explanation, but
+  nothing yet prevents the abuse itself server-side (no domain restriction
+  or proxy).
+- **Nominatim**: rate-limited (~1 req/s), no key — fine for personal use
+  but not for significant traffic.
+- **Image export**: captures exactly what's shown on screen (at the
+  resolution chosen in the export modal), not an independent
+  high-resolution satellite image decoupled from the map's own rendering.

@@ -13,12 +13,6 @@ export const THEME_ICON: Record<Theme, string> = {
   dark: "☾︎",
 };
 
-export const THEME_LABEL: Record<Theme, string> = {
-  auto: "auto (système)",
-  light: "clair",
-  dark: "sombre",
-};
-
 export function useTheme() {
   const [theme, setTheme] = useLocalStorageState(THEME_KEY, "auto");
 

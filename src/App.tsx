@@ -6,6 +6,7 @@ import { useMenuCollapsed } from "./hooks/useMenuCollapsed";
 import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { useToasts } from "./hooks/useToasts";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
+import { useTranslation } from "./hooks/useLanguage";
 import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
 import type { ScenePriority, Bbox } from "./lib/stacInfo";
 import type { PlaceResult } from "./lib/geocode";
@@ -13,7 +14,7 @@ import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/expor
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
-import { PanelHeader } from "./components/PanelHeader";
+import { Navbar } from "./components/Navbar";
 import { PlaceSearchSection } from "./components/PlaceSearchSection";
 import { CompareFormSection } from "./components/CompareFormSection";
 import { AccordionSection } from "./components/AccordionSection";
@@ -92,6 +93,7 @@ export default function App() {
   const menu = useMenuCollapsed();
   const { toasts, showToast } = useToasts();
   const place = useGeocodeSearch();
+  const { t } = useTranslation();
   // Lets a visitor use their own free CDSE Instance ID instead of the app's
   // shared default one, so their usage draws from their own quota — see the
   // "Identifiant personnel" advanced setting.
@@ -115,11 +117,11 @@ export default function App() {
   async function handleCompare(preferredMap?: MapLibreMap) {
     if (compareBusyRef.current) return;
     if (!date1 || !date2) {
-      setStatus("Choisis deux dates.", true);
+      setStatus(t("chooseDates"), true);
       return;
     }
     if (date1 > date2) {
-      setStatus('La date "avant" doit être antérieure (ou égale) à la date "après".', true);
+      setStatus(t("dateOrderError"), true);
       return;
     }
     const source = preferredMap ?? getActiveMap();
@@ -148,7 +150,7 @@ export default function App() {
       setStatus(result.statusMessage, result.hasWarning);
     } catch (err) {
       console.error(err);
-      setStatus(err instanceof Error ? err.message : "Une erreur est survenue.", true);
+      setStatus(err instanceof Error ? err.message : t("genericError"), true);
       compareMaps.closeCompare();
     } finally {
       compareBusyRef.current = false;
@@ -190,12 +192,7 @@ export default function App() {
       // Open the dedicated Instance ID modal directly, instead of just
       // pointing at a setting the visitor then has to go hunt for.
       setActiveModal("instance-id");
-      setStatus(
-        customInstanceId.trim()
-          ? "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus."
-          : "Quota d'imagerie partagé épuisé. Renseigne ton propre identifiant CDSE (gratuit) pour ne plus dépendre du quota commun, ou réessaie plus tard.",
-        true,
-      );
+      setStatus(customInstanceId.trim() ? t("quotaExceededCustom") : t("quotaExceededShared"), true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [compareMaps.quotaExceeded]);
@@ -215,8 +212,8 @@ export default function App() {
     const modeText = RENDER_MODE_LABELS[mode];
     const showHeader = target === "slide";
     return {
-      before: { label: showHeader ? "AVANT" : "", value: dateOnly(stripLabelPrefix(compareMaps.labelA.text)) },
-      after: { label: showHeader ? "APRÈS" : "", value: dateOnly(stripLabelPrefix(compareMaps.labelB.text)) },
+      before: { label: showHeader ? t("labelBefore").toUpperCase() : "", value: dateOnly(stripLabelPrefix(compareMaps.labelA.text)) },
+      after: { label: showHeader ? t("labelAfter").toUpperCase() : "", value: dateOnly(stripLabelPrefix(compareMaps.labelB.text)) },
       attribution: `Sentinel-2 (Copernicus) · ${modeText}`,
     };
   }
@@ -251,29 +248,29 @@ export default function App() {
           quality: options.quality,
           labels: buildExportLabels(exportTarget),
         });
-        showToast(`Image ${kind.toUpperCase()} exportée.`);
+        showToast(t("exportSuccess", { kind: kind.toUpperCase() }));
       } catch (err) {
         console.error(err);
-        setStatus(`Export ${kind.toUpperCase()} impossible : ${err instanceof Error ? err.message : err}`, true);
+        setStatus(t("exportError", { kind: kind.toUpperCase(), err: err instanceof Error ? err.message : String(err) }), true);
       }
       return;
     }
 
     setAnimatedBusy(true);
-    const label = kind === "gif" ? "GIF" : "vidéo WebM";
-    setProgressText(`Génération du ${label}… 0%`);
+    const label = kind === "gif" ? t("animLabelGif") : t("animLabelWebm");
+    setProgressText(t("generating", { label, percent: 0 }));
     try {
       const labels = buildExportLabels("slide");
-      const onProgress = (p: number) => setProgressText(`Génération du ${label}… ${Math.round(p * 100)}%`);
+      const onProgress = (p: number) => setProgressText(t("generating", { label, percent: Math.round(p * 100) }));
       const blob =
         kind === "gif"
           ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
           : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
       downloadBlob(blob, options.filename);
-      showToast(`${label} exporté(e).`);
+      showToast(t("animExportSuccess", { label }));
     } catch (err) {
       console.error(err);
-      setStatus(`Export ${label} impossible : ${err instanceof Error ? err.message : err}`, true);
+      setStatus(t("animExportError", { label, err: err instanceof Error ? err.message : String(err) }), true);
     } finally {
       setAnimatedBusy(false);
     }
@@ -334,7 +331,7 @@ export default function App() {
     const shareUrl = `${location.origin}${location.pathname}?${params.toString()}`;
     try {
       await navigator.clipboard.writeText(shareUrl);
-      showToast("Lien de partage copié dans le presse-papiers.");
+      showToast(t("shareCopied"));
     } catch {
       setStatus(shareUrl);
     }
@@ -390,6 +387,16 @@ export default function App() {
 
       <ToastContainer toasts={toasts} />
 
+      <Navbar
+        theme={theme.theme}
+        onCycleTheme={theme.cycleTheme}
+        onOpenInfo={() => setActiveModal("info")}
+        onOpenShortcuts={() => setActiveModal("shortcuts")}
+        onOpenInstanceId={() => setActiveModal("instance-id")}
+        hasCustomInstanceId={customInstanceId.trim().length > 0}
+        onGithubClick={() => showToast(t("navGithubComingSoon"))}
+      />
+
       <button
         id="menu-toggle"
         title="Basculer le menu (touche M)"
@@ -401,17 +408,7 @@ export default function App() {
       </button>
 
       <div id="panel" className={menu.collapsed ? "collapsed" : ""}>
-        <PanelHeader
-          theme={theme.theme}
-          onCycleTheme={theme.cycleTheme}
-          onOpenInfo={() => setActiveModal("info")}
-          onOpenShortcuts={() => setActiveModal("shortcuts")}
-          onOpenInstanceId={() => setActiveModal("instance-id")}
-          hasCustomInstanceId={customInstanceId.trim().length > 0}
-          onGithubClick={() => showToast("Lien GitHub à venir.")}
-        />
-
-        <AccordionSection id="lieu-section" title="Lieu" open={lieuOpen} onToggle={setLieuOpen}>
+        <AccordionSection id="lieu-section" title={t("sectionPlace")} open={lieuOpen} onToggle={setLieuOpen}>
           <PlaceSearchSection
             query={place.query}
             onQueryChange={place.setQuery}
@@ -421,7 +418,7 @@ export default function App() {
           />
         </AccordionSection>
 
-        <AccordionSection id="dates-section" title="Dates & rendu" open={datesOpen} onToggle={setDatesOpen}>
+        <AccordionSection id="dates-section" title={t("sectionDatesRender")} open={datesOpen} onToggle={setDatesOpen}>
           <CompareFormSection
             date1={date1}
             date2={date2}
@@ -442,7 +439,7 @@ export default function App() {
         </AccordionSection>
 
         {compareMaps.isOpen && (
-          <AccordionSection id="export-section" title="Export" open={exportOpen} onToggle={setExportOpen}>
+          <AccordionSection id="export-section" title={t("sectionExport")} open={exportOpen} onToggle={setExportOpen}>
             <ExportSection
               exportTarget={exportTarget}
               onExportTargetChange={setExportTarget}
@@ -453,9 +450,9 @@ export default function App() {
           </AccordionSection>
         )}
 
-        <AccordionSection id="partage-section" title="Partage" open={partageOpen} onToggle={setPartageOpen}>
+        <AccordionSection id="partage-section" title={t("sectionShare")} open={partageOpen} onToggle={setPartageOpen}>
           <button id="share-btn" onClick={() => void handleShare()}>
-            Copier le lien de partage
+            {t("shareBtn")}
           </button>
         </AccordionSection>
 

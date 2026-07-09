@@ -1,4 +1,5 @@
 :root {
+  --navbar-height: 56px;
   --bg-panel: rgba(255,255,255,0.95);
   --text: #1c1c1e;
   --text-muted: #5a5a5e;
@@ -77,7 +78,7 @@ html, body {
 
 #map, #compare {
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: var(--navbar-height); left: 0; right: 0; bottom: 0;
   overflow: hidden;
 }
 
@@ -255,9 +256,64 @@ html, body {
   transform: translateY(0);
 }
 
+#navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--navbar-height);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--bg-panel);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+  box-sizing: border-box;
+}
+
+#navbar h1 {
+  font-size: 16px;
+  margin: 0;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.navbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.lang-toggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-right: 4px;
+}
+
+.lang-toggle button {
+  border: none;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 6px 8px;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.lang-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
 #menu-toggle {
   position: absolute;
-  top: 12px;
+  top: calc(var(--navbar-height) + 12px);
   left: 12px;
   z-index: 25;
   width: 38px;
@@ -273,14 +329,14 @@ html, body {
 
 #panel {
   position: absolute;
-  top: 12px;
+  top: calc(var(--navbar-height) + 12px);
   left: 58px;
   z-index: 20;
   background: var(--bg-panel);
   border-radius: 8px;
   padding: 14px 16px;
   width: 260px;
-  max-height: calc(100vh - 24px);
+  max-height: calc(100vh - var(--navbar-height) - 24px);
   overflow-y: auto;
   box-shadow: 0 2px 10px rgba(0,0,0,0.25);
   font-size: 13px;
@@ -298,35 +354,13 @@ html, body {
   pointer-events: none;
 }
 
-.panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-#panel h1 {
-  font-size: 15px;
-  margin: 0;
-}
-
-.header-actions {
-  display: flex;
-  gap: 6px;
-  flex: none;
-}
-
-#panel button.icon-btn,
-#panel button#theme-toggle,
-#panel button#info-btn,
-#panel button#shortcuts-btn,
-#panel button#instance-id-btn,
-#panel button#github-btn {
+#navbar button {
   width: auto;
   flex: none;
   margin-top: 0;
-  padding: 4px 8px;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 6px;
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-size: 14px;
@@ -334,9 +368,10 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  cursor: pointer;
 }
 
-#panel button#instance-id-btn.has-custom-instance-id {
+#navbar button#instance-id-btn.has-custom-instance-id {
   background: var(--accent);
   color: var(--accent-contrast);
 }
@@ -733,8 +768,25 @@ kbd {
 }
 
 @media (max-width: 640px) {
-  #shortcuts-btn {
+  /* #navbar button's own display:inline-flex (needed for icon centering)
+     is more specific than a bare #id selector, so hiding these needs to
+     match at least as specifically or it silently loses the cascade. */
+  #navbar button#shortcuts-btn,
+  #navbar button#github-btn {
     display: none;
+  }
+
+  #navbar {
+    padding: 0 10px;
+    gap: 6px;
+  }
+
+  #navbar h1 {
+    font-size: 14px;
+  }
+
+  .navbar-actions {
+    gap: 4px;
   }
 
   #panel {
@@ -756,26 +808,5 @@ kbd {
   .compare-label {
     bottom: auto;
     top: 12px;
-  }
-
-  #settings-sheet-wrap {
-    top: auto;
-    right: 0;
-    bottom: 0;
-    left: 0;
-    height: auto;
-  }
-
-  #settings-sheet {
-    width: 100%;
-    max-width: none;
-    max-height: 75vh;
-    border-radius: 14px 14px 0 0;
-    box-shadow: 0 -2px 14px rgba(0,0,0,0.3);
-    transform: translateY(100%);
-  }
-
-  #settings-sheet-wrap.open #settings-sheet {
-    transform: translateY(0);
   }
 }

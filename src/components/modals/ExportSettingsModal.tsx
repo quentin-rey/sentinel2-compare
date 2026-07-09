@@ -1,17 +1,22 @@
 import { useEffect, useState } from "react";
+import { useTranslation, type TFunction } from "../../hooks/useLanguage";
 
 export type ExportKind = "png" | "jpeg" | "gif" | "webm";
 
-const IMAGE_SIZES = [
-  { label: "Originale (haute résolution)", value: 0 },
-  { label: "HD (1920 px)", value: 1920 },
-  { label: "Compacte (960 px)", value: 960 },
-];
-const ANIM_SIZES = [
-  { label: "HD (960 px)", value: 960 },
-  { label: "Standard (640 px)", value: 640 },
-  { label: "Compacte (400 px)", value: 400 },
-];
+function imageSizes(t: TFunction) {
+  return [
+    { label: t("sizeOriginal"), value: 0 },
+    { label: t("sizeHd", { px: 1920 }), value: 1920 },
+    { label: t("sizeCompact", { px: 960 }), value: 960 },
+  ];
+}
+function animSizes(t: TFunction) {
+  return [
+    { label: t("sizeHd", { px: 960 }), value: 960 },
+    { label: t("sizeStandard", { px: 640 }), value: 640 },
+    { label: t("sizeCompact", { px: 400 }), value: 400 },
+  ];
+}
 
 export interface ExportConfirmOptions {
   maxWidth?: number;
@@ -34,6 +39,7 @@ function isAnimatedKind(kind: ExportKind | null): boolean {
 }
 
 export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onDirectClose, onConfirm }: Props) {
+  const { t } = useTranslation();
   const animated = isAnimatedKind(kind);
   const [size, setSize] = useState(0);
   const [quality, setQuality] = useState(85);
@@ -76,7 +82,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
   }
 
   const showQuality = kind === "jpeg" || kind === "gif";
-  const sizeOptions = animated ? ANIM_SIZES : IMAGE_SIZES;
+  const sizeOptions = animated ? animSizes(t) : imageSizes(t);
   const frameCount = Math.round(duration * fps);
 
   return (
@@ -88,13 +94,13 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
-        <button id="export-modal-close" className="modal-close" aria-label="Fermer" onClick={onDirectClose}>
+        <button id="export-modal-close" className="modal-close" aria-label={t("closeAriaLabel")} onClick={onDirectClose}>
           ✕
         </button>
-        <h2 id="export-modal-title">Options d'export</h2>
+        <h2 id="export-modal-title">{t("exportOptionsTitle")}</h2>
 
         <label>
-          Taille
+          {t("sizeLabel")}
           <select value={size} onChange={(e) => setSize(Number(e.target.value))}>
             {sizeOptions.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -106,7 +112,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
 
         {showQuality && (
           <label>
-            Qualité ({quality}%)
+            {t("qualityLabel", { percent: quality })}
             <input
               type="range"
               min={20}
@@ -122,7 +128,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
           <>
             <div className="row">
               <label>
-                Durée du cycle avant ↔ après ({duration}s)
+                {t("durationLabel", { seconds: duration })}
                 <input
                   type="range"
                   min={2}
@@ -133,19 +139,16 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
                 />
               </label>
               <label>
-                Fluidité ({fps} im/s)
+                {t("fpsLabel", { fps })}
                 <input type="range" min={10} max={30} step={1} value={fps} onChange={(e) => setFps(Number(e.target.value))} />
               </label>
             </div>
-            <p className="field-hint">
-              ≈ {frameCount} images générées. Plus de durée/fluidité = un rendu plus doux mais un fichier plus
-              lourd et plus long à générer.
-            </p>
+            <p className="field-hint">{t("frameCountHint", { frames: frameCount })}</p>
           </>
         )}
 
         <label>
-          Nom du fichier
+          {t("filenameLabel")}
           <input
             type="text"
             value={filename}
@@ -169,7 +172,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
             });
           }}
         >
-          Télécharger
+          {t("downloadBtn")}
         </button>
       </div>
     </div>

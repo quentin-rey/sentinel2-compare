@@ -1,9 +1,12 @@
+import { useTranslation } from "../../hooks/useLanguage";
+
 interface Props {
   open: boolean;
   onClose: () => void;
 }
 
 export function ShortcutsModal({ open, onClose }: Props) {
+  const { t } = useTranslation();
   return (
     <div
       id="shortcuts-modal"
@@ -13,24 +16,24 @@ export function ShortcutsModal({ open, onClose }: Props) {
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">
-        <button id="shortcuts-modal-close" className="modal-close" aria-label="Fermer" onClick={onClose}>
+        <button id="shortcuts-modal-close" className="modal-close" aria-label={t("closeAriaLabel")} onClick={onClose}>
           ✕
         </button>
-        <h2 id="shortcuts-modal-title">Raccourcis clavier</h2>
+        <h2 id="shortcuts-modal-title">{t("shortcutsTitle")}</h2>
         <ul className="shortcuts-list">
           <li>
-            <kbd>M</kbd> Basculer le menu
+            <kbd>M</kbd> {t("shortcutMenu")}
           </li>
           <li>
-            <kbd>Échap</kbd> Fermer la comparaison ou une fenêtre ouverte
+            <kbd>{t("kbdEscape")}</kbd> {t("shortcutClose")}
           </li>
           <li>
-            <kbd>←</kbd> / <kbd>→</kbd> Déplacer le slider
+            <kbd>←</kbd> / <kbd>→</kbd> {t("shortcutSlider")}
           </li>
           <li>
-            <kbd>Maj</kbd> + <kbd>←</kbd>/<kbd>→</kbd> Déplacer le slider plus vite
+            <kbd>{t("kbdShift")}</kbd> + <kbd>←</kbd>/<kbd>→</kbd> {t("shortcutSliderFast")}
           </li>
-          <li>Double-clic sur le curseur : le recentrer</li>
+          <li>{t("shortcutRecenter")}</li>
         </ul>
       </div>
     </div>

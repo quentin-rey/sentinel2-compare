@@ -1,3 +1,5 @@
+import { useTranslation } from "../../hooks/useLanguage";
+
 interface Props {
   open: boolean;
   onCancel: () => void;
@@ -10,6 +12,7 @@ interface Props {
 // (so the prompt closes itself before the user can actually decide). A
 // plain DOM element has no such native-dialog/keyboard interaction quirk.
 export function ExportDiscardConfirmModal({ open, onCancel, onConfirm }: Props) {
+  const { t } = useTranslation();
   return (
     <div
       id="export-discard-modal"
@@ -19,14 +22,14 @@ export function ExportDiscardConfirmModal({ open, onCancel, onConfirm }: Props) 
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-discard-title">
-        <h2 id="export-discard-title">Fermer sans exporter ?</h2>
-        <p>Les réglages choisis seront perdus.</p>
+        <h2 id="export-discard-title">{t("discardTitle")}</h2>
+        <p>{t("discardBody")}</p>
         <div className="row">
           <button id="export-discard-cancel" className="btn-secondary" onClick={onCancel}>
-            Annuler
+            {t("discardCancel")}
           </button>
           <button id="export-discard-confirm" onClick={onConfirm}>
-            Fermer
+            {t("discardConfirm")}
           </button>
         </div>
       </div>

@@ -1,10 +1,12 @@
 import type { SceneDate } from "../lib/stacInfo";
 import { formatDate } from "../utils/format";
+import { useTranslation, type TFunction } from "../hooks/useLanguage";
+import type { Lang } from "../i18n/translations";
 
-function dateOptionLabel(d: SceneDate, totalTiles: number): string {
+function dateOptionLabel(d: SceneDate, totalTiles: number, t: TFunction, lang: Lang): string {
   const cloud = d.cloudCover == null ? "…" : `${d.cloudCover.toFixed(0)}%`;
-  const partial = totalTiles > 1 && d.tileCount < totalTiles ? " (partiel)" : "";
-  return `${formatDate(d.date)} · ${cloud} ☁${partial}`;
+  const partial = totalTiles > 1 && d.tileCount < totalTiles ? t("partialSuffix") : "";
+  return `${formatDate(d.date, lang)} · ${cloud} ☁${partial}`;
 }
 
 interface Props {
@@ -24,6 +26,7 @@ interface Props {
 // (lets the user pick a specific day when the view spans multiple grid
 // tiles imaged on different days — see lib/stacInfo.ts).
 export function CompareLabel({ side, text, title, loading, dates, totalTiles, selectedDate, onSelectDate, onOpenPicker }: Props) {
+  const { t, lang } = useTranslation();
   const showPicker = dates.length >= 2;
   const currentDay = selectedDate?.slice(0, 10);
 
@@ -34,7 +37,7 @@ export function CompareLabel({ side, text, title, loading, dates, totalTiles, se
       <select
         id={`date-picker-${side}`}
         className={`date-picker${showPicker ? "" : " hidden"}`}
-        title="Choisir une autre date disponible"
+        title={t("datePickerTooltip")}
         value={currentDay ?? ""}
         onMouseDown={onOpenPicker}
         onFocus={onOpenPicker}
@@ -42,7 +45,7 @@ export function CompareLabel({ side, text, title, loading, dates, totalTiles, se
       >
         {dates.map((d) => (
           <option key={d.date} value={d.date}>
-            {dateOptionLabel(d, totalTiles)}
+            {dateOptionLabel(d, totalTiles, t, lang)}
           </option>
         ))}
       </select>

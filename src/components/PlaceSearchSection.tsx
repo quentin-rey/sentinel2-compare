@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import type { PlaceResult } from "../lib/geocode";
+import { useTranslation } from "../hooks/useLanguage";
 
 interface Props {
   query: string;
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function PlaceSearchSection({ query, onQueryChange, results, onSelect, onDismiss }: Props) {
+  const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
@@ -27,12 +29,12 @@ export function PlaceSearchSection({ query, onQueryChange, results, onSelect, on
   return (
     <>
       <label>
-        Rechercher un lieu
+        {t("placeSearchLabel")}
         <input
           ref={inputRef}
           type="text"
           id="place-search"
-          placeholder="Ville, adresse, lieu..."
+          placeholder={t("placeSearchPlaceholder")}
           value={query}
           onChange={(e) => onQueryChange(e.target.value)}
         />

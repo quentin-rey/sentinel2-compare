@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client";
 import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles/style.css";
 import App from "./App.tsx";
+import { LanguageProvider } from "./hooks/useLanguage";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <App />
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
   </StrictMode>,
 );

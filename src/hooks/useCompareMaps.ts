@@ -5,6 +5,8 @@ import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "..
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
+import { useTranslation, type TFunction } from "./useLanguage";
+import type { Lang } from "../i18n/translations";
 
 export interface CompareOpts {
   maxCloud: number;
@@ -61,28 +63,26 @@ function resolveTimeParams(requestedDate: string, info: SceneInfoLike, opts: Com
   return null;
 }
 
-function describeScene(label: string, requestedDate: string, info: SceneInfoLike): string {
-  if (info.unknown) return `${label}: ~${formatDate(requestedDate)} (métadonnées indisponibles, date approximative).`;
-  if (!info.found) return `⚠️ ${label}: aucune image trouvée près du ${formatDate(requestedDate)}.`;
-  return `${label}: ${formatDate(info.bestDate)} (nuages ${info.bestCloudCover.toFixed(0)}%, ${info.tileCount} dalle(s)).`;
+function describeScene(label: string, requestedDate: string, info: SceneInfoLike, t: TFunction, lang: Lang): string {
+  const date = formatDate(requestedDate, lang);
+  if (info.unknown) return t("sceneApprox", { label, date });
+  if (!info.found) return t("sceneNotFound", { label, date });
+  return t("sceneFound", { label, date: formatDate(info.bestDate, lang), cloud: info.bestCloudCover.toFixed(0), tiles: info.tileCount });
 }
 
-function labelFor(prefix: string, requestedDate: string, info: SceneInfoLike, opts: CompareOpts): string {
-  if (info.unknown) return `${prefix} — ~${formatDate(requestedDate)}`;
-  if (!info.found) return `${prefix} — aucune image`;
+function labelFor(prefix: string, requestedDate: string, info: SceneInfoLike, opts: CompareOpts, t: TFunction, lang: Lang): string {
+  if (info.unknown) return t("labelApprox", { prefix, date: formatDate(requestedDate, lang) });
+  if (!info.found) return t("labelNoImage", { prefix });
   const approx = opts.priority === "leastcloud" ? " ≈" : "";
-  return `${prefix}${approx} — ${formatDate(info.bestDate)} · ${info.bestCloudCover.toFixed(0)}% ☁`;
+  return t("labelFound", { prefix, approx, date: formatDate(info.bestDate, lang), cloud: info.bestCloudCover.toFixed(0) });
 }
 
-function sceneTooltip(requestedDate: string, info: SceneInfoLike, opts: CompareOpts): string {
-  if (info.unknown) {
-    return `Requête pour le ${formatDate(requestedDate)}. Métadonnées indisponibles : rendu de secours sur une fenêtre de ±${opts.windowDays}j.`;
-  }
-  if (!info.found) {
-    return `Aucune scène trouvée dans une fenêtre de ±${opts.windowDays}j autour du ${formatDate(requestedDate)}.`;
-  }
-  const priorityLabel = opts.priority === "leastcloud" ? "image la moins nuageuse" : "date la plus proche";
-  return `Demandé : ${formatDate(requestedDate)}. Priorité : ${priorityLabel}. Fenêtre de recherche : ±${opts.windowDays} jours.`;
+function sceneTooltip(requestedDate: string, info: SceneInfoLike, opts: CompareOpts, t: TFunction, lang: Lang): string {
+  const date = formatDate(requestedDate, lang);
+  if (info.unknown) return t("tooltipUnavailable", { date, windowDays: opts.windowDays });
+  if (!info.found) return t("tooltipNotFound", { windowDays: opts.windowDays, date });
+  const priorityLabel = opts.priority === "leastcloud" ? t("priorityLabelLeastCloud") : t("priorityLabelClosest");
+  return t("tooltipFound", { date, priorityLabel, windowDays: opts.windowDays });
 }
 
 // Sentinel Hub returns HTTP 429 once the configuration's processing-unit
@@ -114,6 +114,7 @@ async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
  * spinner, date-picker options) are real state.
  */
 export function useCompareMaps() {
+  const { t, lang } = useTranslation();
   const mapAContainerRef = useRef<HTMLDivElement | null>(null);
   const mapBContainerRef = useRef<HTMLDivElement | null>(null);
   const mapBWrapRef = useRef<HTMLDivElement | null>(null);
@@ -171,6 +172,19 @@ export function useCompareMaps() {
     inst.mapB?.resize();
   }, [isOpen]);
 
+  // labelA/labelB are plain strings, generated once per compare/date-pick —
+  // switching language mid-session wouldn't otherwise update the on-map
+  // labels until the next compare. Regenerate them from the stored render
+  // state (no network refetch needed) whenever the language changes.
+  useEffect(() => {
+    if (!renderStateA || !renderStateB || !lastOpts) return;
+    const prefixBefore = t("labelBefore");
+    const prefixAfter = t("labelAfter");
+    setLabelA((s) => ({ ...s, text: labelFor(prefixBefore, renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang), title: sceneTooltip(renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang) }));
+    setLabelB((s) => ({ ...s, text: labelFor(prefixAfter, renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang), title: sceneTooltip(renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
   const addCompareLayer = useCallback(
     (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, requestedDate: string, info: SceneInfoLike, opts: CompareOpts) => {
       const params = resolveTimeParams(requestedDate, info, opts);
@@ -213,8 +227,8 @@ export function useCompareMaps() {
       const { center, zoom, bearing, pitch, bbox } = view;
 
       setIsOpen(true);
-      setLabelA({ text: "Avant — chargement…", title: "", loading: true });
-      setLabelB({ text: "Après — chargement…", title: "", loading: true });
+      setLabelA({ text: t("loadingBefore"), title: "", loading: true });
+      setLabelB({ text: t("loadingAfter"), title: "", loading: true });
       setDatesA([]);
       setDatesB([]);
       cloudLoadStartedRef.current = { a: false, b: false };
@@ -231,7 +245,7 @@ export function useCompareMaps() {
         // Should be unreachable — the containers are always mounted (see
         // module doc comment) — but keeps the return type total.
         setIsOpen(false);
-        return { statusMessage: "Erreur interne : conteneurs de carte introuvables.", hasWarning: true };
+        return { statusMessage: t("internalError"), hasWarning: true };
       }
       const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
@@ -304,8 +318,10 @@ export function useCompareMaps() {
       swapLayerMode(mapB, "src-b", mode, date2, infoB, opts, (loading) => setLabelB((s) => ({ ...s, loading })));
       setIsResolving(false);
 
-      setLabelA({ text: labelFor("Avant", date1, infoA, opts), title: sceneTooltip(date1, infoA, opts), loading: false });
-      setLabelB({ text: labelFor("Après", date2, infoB, opts), title: sceneTooltip(date2, infoB, opts), loading: false });
+      const prefixBefore = t("labelBefore");
+      const prefixAfter = t("labelAfter");
+      setLabelA({ text: labelFor(prefixBefore, date1, infoA, opts, t, lang), title: sceneTooltip(date1, infoA, opts, t, lang), loading: false });
+      setLabelB({ text: labelFor(prefixAfter, date2, infoB, opts, t, lang), title: sceneTooltip(date2, infoB, opts, t, lang), loading: false });
       setDatesA(sceneA.dates);
       setDatesB(sceneB.dates);
       setRenderStateA({ requestedDate: date1, info: infoA });
@@ -314,11 +330,11 @@ export function useCompareMaps() {
 
       const hasWarning = !infoA.found || !infoB.found;
       return {
-        statusMessage: `${describeScene("Avant", date1, infoA)} ${describeScene("Après", date2, infoB)}`,
+        statusMessage: `${describeScene(prefixBefore, date1, infoA, t, lang)} ${describeScene(prefixAfter, date2, infoB, t, lang)}`,
         hasWarning,
       };
     },
-    [addCompareLayer, swapLayerMode],
+    [addCompareLayer, swapLayerMode, t, lang],
   );
 
   const closeCompare = useCallback(() => {
@@ -381,7 +397,7 @@ export function useCompareMaps() {
       const mapInstance = side === "a" ? inst.mapA : inst.mapB;
       const key = side === "a" ? "src-a" : "src-b";
       const setLabel = side === "a" ? setLabelA : setLabelB;
-      const prefix = side === "a" ? "Avant" : "Après";
+      const prefix = side === "a" ? t("labelBefore") : t("labelAfter");
       const source = mapInstance?.getSource(key) as maplibregl.RasterTileSource | undefined;
       if (!mapInstance || !dateStr || !source) return;
 
@@ -404,12 +420,12 @@ export function useCompareMaps() {
       if (side === "a") setRenderStateA({ requestedDate: dateStr, info: updatedInfo });
       else setRenderStateB({ requestedDate: dateStr, info: updatedInfo });
       setLabel({
-        text: `${prefix} — ${formatDate(dateStr)} · ${(cloudCover ?? 0).toFixed(0)}% ☁`,
-        title: "Date choisie manuellement parmi les scènes disponibles.",
+        text: `${prefix} — ${formatDate(dateStr, lang)} · ${(cloudCover ?? 0).toFixed(0)}% ☁`,
+        title: t("manualPickTooltip"),
         loading: false,
       });
     },
-    [lastOpts],
+    [lastOpts, t, lang],
   );
 
   const resetSlider = useCallback(() => {
