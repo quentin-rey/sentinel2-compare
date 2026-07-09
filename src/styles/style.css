@@ -102,30 +102,54 @@ html, body {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 4px;
-  margin-left: -2px;
-  background: var(--accent);
+  width: 3px;
+  margin-left: -1.5px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), #fff 8%, #fff 92%, rgba(255,255,255,0));
   cursor: ew-resize;
-  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  box-shadow: 0 0 5px rgba(0,0,0,0.7);
   z-index: 10;
+  transition: filter 0.15s ease;
+}
+
+#swiper:hover {
+  filter: brightness(1.15);
 }
 
 #swiper:focus-visible {
+  outline: none;
+}
+
+#swiper:focus-visible::after {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
 
 #swiper::after {
-  content: "";
+  content: "⇔";
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
   transform: translate(-50%, -50%);
   border-radius: 50%;
   background: var(--accent);
-  box-shadow: 0 0 6px rgba(0,0,0,0.5);
+  color: var(--accent-contrast);
+  font-size: 15px;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+#swiper:hover::after {
+  transform: translate(-50%, -50%) scale(1.08);
+  box-shadow: 0 3px 14px rgba(0,0,0,0.6);
+}
+
+#swiper:active::after {
+  transform: translate(-50%, -50%) scale(0.94);
 }
 
 #reset-slider-btn {
@@ -287,27 +311,51 @@ html, body {
   flex: none;
 }
 
+/* Segmented switch with a sliding highlight — a single animated control
+   rather than two independently-styled buttons that just swap colors. */
 .lang-toggle {
+  position: relative;
   display: flex;
+  width: 68px;
+  height: 30px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 15px;
+  background: var(--secondary-bg);
   overflow: hidden;
   margin-right: 4px;
 }
 
+.lang-toggle-indicator {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: calc(50% - 2px);
+  height: calc(100% - 4px);
+  border-radius: 13px;
+  background: var(--accent);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+}
+
+.lang-toggle-indicator-en {
+  transform: translateX(calc(100% + 2px));
+}
+
 .lang-toggle button {
+  position: relative;
+  z-index: 1;
+  flex: 1;
   border: none;
-  background: var(--secondary-bg);
+  background: transparent;
   color: var(--secondary-text);
   font-size: 11px;
   font-weight: 700;
-  padding: 6px 8px;
   cursor: pointer;
   line-height: 1;
+  transition: color 0.2s ease;
 }
 
 .lang-toggle button.active {
-  background: var(--accent);
   color: var(--accent-contrast);
 }
 
@@ -354,21 +402,30 @@ html, body {
   pointer-events: none;
 }
 
+/* Fixed square footprint so every icon button — text glyph, emoji, or SVG —
+   reads as the same visual weight instead of shrink-wrapping to whatever
+   width/height its own content happens to need. */
 #navbar button {
-  width: auto;
+  width: 34px;
+  height: 34px;
   flex: none;
   margin-top: 0;
-  padding: 6px 9px;
+  padding: 0;
   border: none;
   border-radius: 6px;
   background: var(--secondary-bg);
   color: var(--secondary-text);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+}
+
+#navbar button svg {
+  width: 15px;
+  height: 15px;
 }
 
 #navbar button#instance-id-btn.has-custom-instance-id {
