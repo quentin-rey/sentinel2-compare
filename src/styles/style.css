@@ -312,11 +312,14 @@ html, body {
 }
 
 /* Segmented switch with a sliding highlight — a single animated control
-   rather than two independently-styled buttons that just swap colors. */
-.lang-toggle {
+   (used for both FR/EN and the theme picker) rather than independent
+   buttons that just swap colors. Rules are scoped under #navbar so they
+   reliably beat the plain `#navbar button` rule below (bare id+element is
+   less specific than id+class+element, and CSS-order alone isn't a safe
+   way to guarantee this cascade). */
+#navbar .segment-toggle {
   position: relative;
   display: flex;
-  width: 68px;
   height: 30px;
   border: 1px solid var(--border);
   border-radius: 15px;
@@ -325,11 +328,18 @@ html, body {
   margin-right: 4px;
 }
 
-.lang-toggle-indicator {
+#navbar .lang-toggle {
+  width: 68px;
+}
+
+#navbar .theme-toggle {
+  width: 102px;
+}
+
+#navbar .segment-toggle-indicator {
   position: absolute;
   top: 2px;
   left: 2px;
-  width: calc(50% - 2px);
   height: calc(100% - 4px);
   border-radius: 13px;
   background: var(--accent);
@@ -337,14 +347,20 @@ html, body {
   pointer-events: none;
 }
 
-.lang-toggle-indicator-en {
-  transform: translateX(calc(100% + 2px));
+#navbar .lang-toggle .segment-toggle-indicator {
+  width: calc(50% - 2px);
 }
 
-.lang-toggle button {
+#navbar .theme-toggle .segment-toggle-indicator {
+  width: calc(33.333% - 1.33px);
+}
+
+#navbar .segment-toggle button {
   position: relative;
   z-index: 1;
   flex: 1;
+  width: auto;
+  height: 100%;
   border: none;
   background: transparent;
   color: var(--secondary-text);
@@ -355,7 +371,12 @@ html, body {
   transition: color 0.2s ease;
 }
 
-.lang-toggle button.active {
+#navbar .segment-toggle button svg {
+  width: 14px;
+  height: 14px;
+}
+
+#navbar .segment-toggle button.active {
   color: var(--accent-contrast);
 }
 

@@ -389,7 +389,7 @@ export default function App() {
 
       <Navbar
         theme={theme.theme}
-        onCycleTheme={theme.cycleTheme}
+        onThemeChange={theme.setTheme}
         onOpenInfo={() => setActiveModal("info")}
         onOpenShortcuts={() => setActiveModal("shortcuts")}
         onOpenInstanceId={() => setActiveModal("instance-id")}

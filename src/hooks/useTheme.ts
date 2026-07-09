@@ -24,9 +24,5 @@ export function useTheme() {
     }
   }, [theme]);
 
-  function cycleTheme() {
-    setTheme((current) => (current === "auto" ? "light" : current === "light" ? "dark" : "auto"));
-  }
-
-  return { theme: theme as Theme, cycleTheme };
+  return { theme: theme as Theme, setTheme: (next: Theme) => setTheme(next) };
 }
