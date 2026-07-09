@@ -1,21 +1,24 @@
 # Sentinel-2 Compare
 
-Web app statique (HTML/JS, sans build) pour comparer deux images satellite
-Sentinel-2 à des dates différentes, sur la même zone, avec un slider de
-comparaison géoréférencé (pan/zoom synchronisés).
+App pour comparer deux images satellite Sentinel-2 à des dates différentes,
+sur la même zone, avec un slider de comparaison géoréférencé (pan/zoom
+synchronisés). React + TypeScript + Vite, déployée en site statique sur
+GitHub Pages — aucun backend applicatif.
 
 ## Architecture
 
+- **UI** : React + TypeScript, buildée avec [Vite](https://vite.dev/).
 - **Carte** : [MapLibre GL JS](https://maplibre.org/) (aucune clé requise),
   fond de carte OpenStreetMap pour la navigation.
 - **Imagerie Sentinel-2** : rendue côté serveur par le service **WMTS** de
   [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
-  (Sentinel Hub). Le frontend appelle directement ce WMTS — pas de backend,
-  déployable tel quel sur GitHub Pages.
+  (Sentinel Hub). Le frontend appelle directement ce WMTS depuis le
+  navigateur — pas de backend, déployable tel quel sur GitHub Pages.
 - **Métadonnées** (date réelle de l'acquisition, taux de nuages, détection
   d'absence de données) : requêtes en lecture seule vers le
-  [STAC public d'AWS Earth Search](https://earth-search.aws.element84.com/v1/search)
-  — n'affecte pas le rendu, seulement l'affichage d'info.
+  [catalogue OData de Copernicus Data Space Ecosystem](https://catalogue.dataspace.copernicus.eu/odata/v1/Products)
+  — la même source que celle qui alimente les tuiles WMTS, donc toujours
+  cohérente avec ce qui est réellement affiché.
 - **Recherche de lieu** : [Nominatim (OpenStreetMap)](https://nominatim.org/),
   gratuit, sans clé.
 - **Swipe** : deux instances MapLibre superposées, synchronisées en caméra,
@@ -23,6 +26,21 @@ comparaison géoréférencé (pan/zoom synchronisés).
 
 Aucun de ces services ne nécessite de secret côté client — tout tourne dans
 le navigateur.
+
+### Structure du code
+
+```
+src/
+  lib/          fonctions pures / appels réseau (wmts, stacInfo, geocode,
+                exportImage, animatedExport, swipe, config) — aucune
+                dépendance à React
+  hooks/        useBaseMap, useCompareMaps (cœur de l'app : cycle de vie
+                des deux cartes MapLibre + slider), useTheme,
+                useMenuCollapsed, useToasts, useGeocodeSearch
+  components/   Panel, sections du formulaire, CompareView, modales
+  utils/        petits helpers de formatage
+tests/          suite Playwright (tests/e2e.spec.ts)
+```
 
 ## Modes de rendu
 
@@ -83,8 +101,9 @@ function evaluatePixel(sample) {
 **`WILDFIRE`** : layer de template intégré (pas de script à coller).
 
 5. Récupérer l'**Instance ID** affiché dans le panneau de la configuration.
-6. Le coller dans [`js/config.js`](js/config.js) (`SH_INSTANCE_ID`), et vérifier
-   que `MODE_LAYERS` pointe vers les bons Layer IDs si tu les as nommés différemment.
+6. Le coller dans [`src/lib/config.ts`](src/lib/config.ts) (`SH_INSTANCE_ID`), et
+   vérifier que `MODE_LAYERS` pointe vers les bons Layer IDs si tu les as
+   nommés différemment.
 
 ⚠️ L'Instance ID est **public par nature** (il est embarqué dans le code
 frontend) — ce n'est pas un secret, mais **n'importe qui peut l'utiliser et
@@ -93,42 +112,64 @@ restriction de domaine mise en place pour l'instant (voir "Limites connues").
 
 ## Lancer en local
 
-Aucune dépendance, aucun build. Un simple serveur statique suffit :
-
 ```bash
-python3 -m http.server 8765
+npm install
+npm run dev
 ```
 
-Puis ouvrir `http://localhost:8765`.
+Puis ouvrir l'URL affichée (le chemin inclut `/sentinel2-compare/`, voir
+`vite.config.ts`).
+
+Autres commandes utiles :
+
+```bash
+npm run build       # build de production dans dist/
+npm run preview      # sert le build de production en local
+npm run lint         # oxlint
+npm run test:e2e     # suite Playwright (voir tests/e2e.spec.ts)
+```
 
 ## Déploiement (GitHub Pages)
 
-1. Pousser le contenu du dépôt sur GitHub.
-2. Dans les paramètres du repo → **Pages** → source = branche `main`, dossier `/ (root)`.
-3. L'app est servie telle quelle, aucune étape de build.
+Automatisé via `.github/workflows/deploy.yml` : chaque push sur `main`
+build l'app et la déploie sur GitHub Pages via `actions/deploy-pages`.
+
+Étape unique à faire manuellement sur GitHub : Settings → Pages → Source =
+**GitHub Actions** (pas "Deploy from a branch").
+
+Le chemin de base (`base` dans `vite.config.ts`) est calé sur le nom du
+dépôt (`/sentinel2-compare/`) — à adapter si le dépôt est renommé ou si
+l'app est servie à la racine d'un site utilisateur/organisation.
 
 ## Fonctionnalités
 
 - Comparaison swipe géoréférencée (pan/zoom synchronisés entre les deux dates)
+- Aperçu instantané pendant la résolution de la date exacte (bandeau de
+  chargement explicite), pour ne jamais laisser un écran vide
 - 4 modes de rendu (True Color, False Color, HONC, Wildfire)
-- Réglage du seuil de nuages max et de la fenêtre de recherche de dates
+- Priorité de sélection "date la plus proche" (préférence, pas exclusion,
+  sur le seuil de nuages — pour ne jamais masquer une scène enfumée) ou
+  "moins nuageux"
+- Sélecteur manuel de date par côté quand la zone chevauche plusieurs dalles
+  Sentinel-2 imagées à des jours différents
 - Recherche de lieu (geocoding)
 - Affichage de la date réelle et du taux de nuages de la scène trouvée
 - Détection et message clair si aucune image n'est disponible pour les critères choisis
 - Partage par URL (lieu + dates + mode + réglages)
-- Export de la vue de comparaison en PNG ou JPEG
+- Export PNG/JPEG/GIF/WebM avec réglages (taille, qualité, durée/fluidité pour
+  les animations, nom de fichier), bulles d'info datées gravées dans l'export
+- Thème clair/sombre/auto, menu repliable, raccourcis clavier
 
 ## Limites connues
 
 - **Quota partagé** : l'Instance ID Sentinel Hub est visible dans le code
   source et n'est pas protégé — un usage abusif par un tiers consommerait
-  le quota gratuit du compte. À surveiller ; une solution de restriction
-  (domaine autorisé côté CDSE, ou proxy) est à évaluer si ça devient un problème.
-- **Métadonnées approximatives** : les infos de date réelle/nuages affichées
-  viennent d'un index STAC différent (AWS Earth Search) de celui utilisé par
-  le rendu WMTS (Sentinel Hub) — les deux indexent le même catalogue Sentinel-2
-  L2A, donc les résultats sont normalement identiques, mais ce n'est pas garanti à 100%.
+  le quota gratuit du compte. À surveiller ; une solution (restriction de
+  domaine côté CDSE, proxy serverless, ou modèle "bring your own ID") est à
+  évaluer si ça devient un problème — sujet volontairement mis de côté pour
+  l'instant.
 - **Nominatim** : rate-limité (~1 req/s), sans clé — suffisant pour un usage
   perso mais pas pour un trafic important.
-- **Export image** : capture exactement ce qui est affiché à l'écran (résolution
-  de la fenêtre du navigateur), pas une image satellite haute résolution.
+- **Export image** : capture exactement ce qui est affiché à l'écran (à la
+  résolution choisie dans la modale d'export), pas une image satellite haute
+  résolution indépendante du rendu de la carte.
