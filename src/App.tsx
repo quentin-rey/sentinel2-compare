@@ -3,6 +3,7 @@ import { useBaseMap } from "./hooks/useBaseMap";
 import { useCompareMaps, type CompareOpts, type CompareView as CompareViewParams } from "./hooks/useCompareMaps";
 import { useTheme } from "./hooks/useTheme";
 import { useMenuCollapsed } from "./hooks/useMenuCollapsed";
+import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { useToasts } from "./hooks/useToasts";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
@@ -81,6 +82,10 @@ export default function App() {
   const menu = useMenuCollapsed();
   const { toasts, showToast } = useToasts();
   const place = useGeocodeSearch();
+  // Lets a visitor use their own free CDSE Instance ID instead of the app's
+  // shared default one, so their usage draws from their own quota — see the
+  // "Identifiant personnel" advanced setting.
+  const [customInstanceId, setCustomInstanceId] = useLocalStorageState("s2compare-instance-id", "");
 
   function setStatus(message: string, isError = false) {
     setStatusState({ message, isError });
@@ -127,6 +132,7 @@ export default function App() {
         maxCloud: Number(maxCloud) || DEFAULT_MAX_CLOUD,
         windowDays: Number(windowDays) || DEFAULT_WINDOW_DAYS,
         priority,
+        instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runCompare(date1, date2, mode, opts, view);
       setStatus(result.statusMessage, result.hasWarning);
@@ -158,6 +164,21 @@ export default function App() {
     setMode(value);
     if (compareMaps.isOpen) compareMaps.changeMode(value);
   }
+
+  // Sentinel Hub returns HTTP 429 once the (shared, by default) quota is
+  // exhausted — surface that plainly instead of leaving blank tiles with no
+  // explanation.
+  useEffect(() => {
+    if (compareMaps.quotaExceeded) {
+      setStatus(
+        customInstanceId.trim()
+          ? "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné dans les réglages avancés. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus."
+          : "Quota d'imagerie partagé épuisé. Renseigne ton propre identifiant CDSE (gratuit) dans les réglages avancés pour ne plus dépendre du quota commun, ou réessaie plus tard.",
+        true,
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [compareMaps.quotaExceeded]);
 
   // --- Export -----------------------------------------------------------------
 
@@ -393,6 +414,8 @@ export default function App() {
           isComparing={compareMaps.isOpen}
           onCompare={() => void handleCompare()}
           onClose={handleClose}
+          customInstanceId={customInstanceId}
+          onCustomInstanceIdChange={setCustomInstanceId}
         />
 
         <ExportSection

@@ -1,10 +1,14 @@
 import { SH_INSTANCE_ID, MODE_LAYERS, type RenderMode } from "./config";
 
-export const SH_WMTS_BASE = `https://sh.dataspace.copernicus.eu/ogc/wmts/${SH_INSTANCE_ID}`;
+export const SH_WMTS_HOST = "https://sh.dataspace.copernicus.eu/ogc/wmts";
+export const SH_WMTS_BASE = `${SH_WMTS_HOST}/${SH_INSTANCE_ID}`;
 
 export interface WmtsTileOptions {
   maxCloud?: number;
   priority?: "mostRecent" | "leastCC";
+  // Overrides the built-in Sentinel Hub Instance ID — lets a visitor use
+  // their own free CDSE quota instead of the app's shared default one.
+  instanceId?: string;
 }
 
 /**
@@ -25,7 +29,7 @@ export interface WmtsTileOptions {
 export function wmtsTileUrl(
   mode: RenderMode,
   timeRange: string,
-  { maxCloud = 100, priority = "mostRecent" }: WmtsTileOptions = {},
+  { maxCloud = 100, priority = "mostRecent", instanceId }: WmtsTileOptions = {},
 ): string {
   const layer = MODE_LAYERS[mode];
   if (!layer) throw new Error(`Mode de rendu inconnu: ${mode}`);
@@ -44,8 +48,9 @@ export function wmtsTileUrl(
     SHOWLOGO: "false",
   });
 
+  const base = instanceId ? `${SH_WMTS_HOST}/${instanceId}` : SH_WMTS_BASE;
   // {z}/{x}/{y} are substituted per-tile by MapLibre itself.
-  return `${SH_WMTS_BASE}?${params.toString()}&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
+  return `${base}?${params.toString()}&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}`;
 }
 
 // Single UTC calendar day range, e.g. for a date resolved via STAC metadata.

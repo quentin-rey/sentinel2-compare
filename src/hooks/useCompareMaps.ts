@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
-import { wmtsTileUrl, dayRange } from "../lib/wmts";
+import { wmtsTileUrl, dayRange, SH_WMTS_HOST } from "../lib/wmts";
 import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "../lib/stacInfo";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import type { RenderMode } from "../lib/config";
@@ -10,6 +10,9 @@ export interface CompareOpts {
   maxCloud: number;
   windowDays: number;
   priority: "closest" | "leastcloud";
+  // Overrides the app's shared Sentinel Hub Instance ID with the visitor's
+  // own — see useInstanceId / the "Identifiant personnel" advanced setting.
+  instanceId?: string;
 }
 
 // Either a resolved lookup result, or the "metadata unavailable" fallback
@@ -42,7 +45,7 @@ const DEFAULT_LABEL: LabelState = { text: "", title: "", loading: false };
 
 function resolveTimeParams(requestedDate: string, info: SceneInfoLike, opts: CompareOpts) {
   if (info.found) {
-    return { timeRange: dayRange(info.bestDate), maxCloud: 100, priority: "mostRecent" as const };
+    return { timeRange: dayRange(info.bestDate), maxCloud: 100, priority: "mostRecent" as const, instanceId: opts.instanceId };
   }
   if (info.unknown) {
     const target = new Date(requestedDate + "T00:00:00Z");
@@ -52,6 +55,7 @@ function resolveTimeParams(requestedDate: string, info: SceneInfoLike, opts: Com
       timeRange: `${start}/${end}`,
       maxCloud: opts.priority === "leastcloud" ? opts.maxCloud : 100,
       priority: (opts.priority === "leastcloud" ? "leastCC" : "mostRecent") as "leastCC" | "mostRecent",
+      instanceId: opts.instanceId,
     };
   }
   return null;
@@ -79,6 +83,16 @@ function sceneTooltip(requestedDate: string, info: SceneInfoLike, opts: CompareO
   }
   const priorityLabel = opts.priority === "leastcloud" ? "image la moins nuageuse" : "date la plus proche";
   return `Demandé : ${formatDate(requestedDate)}. Priorité : ${priorityLabel}. Fenêtre de recherche : ±${opts.windowDays} jours.`;
+}
+
+// Sentinel Hub returns HTTP 429 once the configuration's processing-unit
+// quota is exhausted for the period — MapLibre surfaces that as a plain
+// failed-tile "error" event with no special handling of its own, so a tile
+// just silently stays blank. Detecting it here lets the UI show something
+// actionable instead.
+function isQuotaErrorEvent(e: { error?: unknown }): boolean {
+  const err = e.error as { status?: number; url?: string } | undefined;
+  return err?.status === 429 && typeof err.url === "string" && err.url.startsWith(SH_WMTS_HOST);
 }
 
 async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
@@ -115,8 +129,12 @@ export function useCompareMaps() {
   // (mousedown + focus both fire onOpenPicker) — reset whenever a fresh
   // compare starts.
   const cloudLoadStartedRef = useRef<{ a: boolean; b: boolean }>({ a: false, b: false });
+  // Only surface one quota warning per compare session — every failed tile
+  // in the viewport would otherwise fire its own "error" event.
+  const quotaWarnedRef = useRef(false);
 
   const [isOpen, setIsOpen] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [labelA, setLabelA] = useState<LabelState>(DEFAULT_LABEL);
   const [labelB, setLabelB] = useState<LabelState>(DEFAULT_LABEL);
@@ -173,6 +191,8 @@ export function useCompareMaps() {
       setDatesA([]);
       setDatesB([]);
       cloudLoadStartedRef.current = { a: false, b: false };
+      quotaWarnedRef.current = false;
+      setQuotaExceeded(false);
 
       const inst = instancesRef.current;
       inst.mapA?.remove();
@@ -208,6 +228,14 @@ export function useCompareMaps() {
       });
       inst.mapA = mapA;
       inst.mapB = mapB;
+
+      const handleTileError = (e: { error?: unknown }) => {
+        if (quotaWarnedRef.current || !isQuotaErrorEvent(e)) return;
+        quotaWarnedRef.current = true;
+        setQuotaExceeded(true);
+      };
+      mapA.on("error", handleTileError);
+      mapB.on("error", handleTileError);
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 
@@ -270,6 +298,8 @@ export function useCompareMaps() {
     setDatesA([]);
     setDatesB([]);
     cloudLoadStartedRef.current = { a: false, b: false };
+    quotaWarnedRef.current = false;
+    setQuotaExceeded(false);
   }, []);
 
   // Cloud cover isn't fetched upfront for every candidate day (see
@@ -316,7 +346,7 @@ export function useCompareMaps() {
       const source = mapInstance?.getSource(key) as maplibregl.RasterTileSource | undefined;
       if (!mapInstance || !dateStr || !source) return;
 
-      const params = { timeRange: dayRange(dateStr), maxCloud: 100, priority: "mostRecent" as const };
+      const params = { timeRange: dayRange(dateStr), maxCloud: 100, priority: "mostRecent" as const, instanceId: lastOpts?.instanceId };
       setLabel((s) => ({ ...s, loading: true }));
       mapInstance.once("idle", () => setLabel((s) => ({ ...s, loading: false })));
       source.setTiles([wmtsTileUrl(mode, params.timeRange, params)]);
@@ -340,7 +370,7 @@ export function useCompareMaps() {
         loading: false,
       });
     },
-    [],
+    [lastOpts],
   );
 
   const resetSlider = useCallback(() => {
@@ -356,6 +386,7 @@ export function useCompareMaps() {
     instancesRef,
     isOpen,
     isResolving,
+    quotaExceeded,
     labelA,
     labelB,
     datesA,

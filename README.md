@@ -109,6 +109,9 @@ function evaluatePixel(sample) {
 frontend) — ce n'est pas un secret, mais **n'importe qui peut l'utiliser et
 consommer ton quota gratuit** s'il le récupère depuis le code source. Pas de
 restriction de domaine mise en place pour l'instant (voir "Limites connues").
+Chaque visiteur peut cependant renseigner son propre Instance ID dans les
+réglages avancés de l'app pour ne pas dépendre du quota partagé (voir
+"Fonctionnalités").
 
 ## Lancer en local
 
@@ -159,15 +162,20 @@ l'app est servie à la racine d'un site utilisateur/organisation.
 - Export PNG/JPEG/GIF/WebM avec réglages (taille, qualité, durée/fluidité pour
   les animations, nom de fichier), bulles d'info datées gravées dans l'export
 - Thème clair/sombre/auto, menu repliable, raccourcis clavier
+- Détection du quota d'imagerie épuisé (HTTP 429 côté Sentinel Hub), avec
+  message explicite au lieu de tuiles vides silencieuses
+- Réglage avancé "Identifiant CDSE personnel" pour utiliser son propre quota
+  gratuit plutôt que le quota partagé par défaut (stocké en local, jamais
+  envoyé nulle part)
 
 ## Limites connues
 
-- **Quota partagé** : l'Instance ID Sentinel Hub est visible dans le code
-  source et n'est pas protégé — un usage abusif par un tiers consommerait
-  le quota gratuit du compte. À surveiller ; une solution (restriction de
-  domaine côté CDSE, proxy serverless, ou modèle "bring your own ID") est à
-  évaluer si ça devient un problème — sujet volontairement mis de côté pour
-  l'instant.
+- **Quota partagé** : l'Instance ID Sentinel Hub par défaut est visible dans
+  le code source et n'est pas protégé — un usage abusif par un tiers
+  consommerait le quota gratuit du compte. L'app détecte maintenant le cas
+  (HTTP 429) et invite à renseigner un identifiant personnel plutôt que de
+  laisser des tuiles vides sans explication, mais rien n'empêche encore
+  l'abus lui-même côté serveur (pas de restriction de domaine ni de proxy).
 - **Nominatim** : rate-limité (~1 req/s), sans clé — suffisant pour un usage
   perso mais pas pour un trafic important.
 - **Export image** : capture exactement ce qui est affiché à l'écran (à la
