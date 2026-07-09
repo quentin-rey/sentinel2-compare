@@ -147,7 +147,7 @@ export default function App() {
         instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runCompare(date1, date2, mode, opts, view);
-      setStatus(result.statusMessage, result.hasWarning);
+      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : t("genericError"), true);

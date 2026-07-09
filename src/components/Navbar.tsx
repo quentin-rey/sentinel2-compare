@@ -58,7 +58,7 @@ export function Navbar({ theme, onThemeChange, onOpenInfo, onOpenShortcuts, onOp
           <span
             className="segment-toggle-indicator"
             aria-hidden="true"
-            style={{ transform: `translateX(calc((100% + 2px) * ${lang === "en" ? 1 : 0}))` }}
+            style={{ transform: `translateX(calc(100% * ${lang === "en" ? 1 : 0}))` }}
           />
           {(["fr", "en"] as Lang[]).map((l) => (
             <button
@@ -98,7 +98,7 @@ export function Navbar({ theme, onThemeChange, onOpenInfo, onOpenShortcuts, onOp
           <span
             className="segment-toggle-indicator"
             aria-hidden="true"
-            style={{ transform: `translateX(calc((100% + 2px) * ${THEME_ORDER.indexOf(theme)}))` }}
+            style={{ transform: `translateX(calc(100% * ${THEME_ORDER.indexOf(theme)}))` }}
           />
           {THEME_ORDER.map((th) => (
             <button

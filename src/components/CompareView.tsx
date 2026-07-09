@@ -47,14 +47,6 @@ export function CompareView({ compare, mode }: Props) {
         aria-valuenow={50}
         onDoubleClick={resetSlider}
       />
-      <button
-        id="reset-slider-btn"
-        className={isOpen ? "" : "hidden"}
-        title="Recentrer le slider (ou double-clic sur le curseur)"
-        onClick={resetSlider}
-      >
-        ⟲
-      </button>
       <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
         <span className="banner-spinner" />
         Chargement des dates exactes en cours… l'aperçu affiché peut être approximatif.

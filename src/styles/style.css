@@ -152,27 +152,6 @@ html, body {
   transform: translate(-50%, -50%) scale(0.94);
 }
 
-#reset-slider-btn {
-  position: absolute;
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 8;
-  width: 30px;
-  height: 30px;
-  border: none;
-  border-radius: 50%;
-  background: rgba(0,0,0,0.6);
-  color: #fff;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-#reset-slider-btn:hover {
-  background: rgba(0,0,0,0.8);
-}
-
 .compare-label {
   position: absolute;
   bottom: 12px;

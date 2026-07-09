@@ -51,10 +51,10 @@ test("runs a full compare and the slider drags without horizontal overflow", asy
   // resolves) — both map canvases should be visible right away.
   await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
 
-  // Language-agnostic: the scene description reads "nuages 34%, ..." in
-  // French or "clouds 34%, ..." in English depending on the detected/chosen
-  // UI language, so match the shared numeric pattern instead of the word.
-  await page.waitForFunction(() => /\d+%,/.test(document.getElementById("status")?.textContent ?? ""), {
+  // Language-agnostic: the on-map label reads "nuages 34%, ..." in French or
+  // "clouds 34%, ..." in English depending on the detected/chosen UI
+  // language, so match the shared numeric pattern instead of the word.
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), {
     timeout: 20000,
   });
 
@@ -109,10 +109,10 @@ test("exports a PNG with the expected filename pattern", async ({ page }) => {
   await page.fill("#date1", "2026-06-01");
   await page.fill("#date2", "2026-07-08");
   await page.click("#compare-btn");
-  // Language-agnostic: the scene description reads "nuages 34%, ..." in
-  // French or "clouds 34%, ..." in English depending on the detected/chosen
-  // UI language, so match the shared numeric pattern instead of the word.
-  await page.waitForFunction(() => /\d+%,/.test(document.getElementById("status")?.textContent ?? ""), {
+  // Language-agnostic: the on-map label reads "nuages 34%, ..." in French or
+  // "clouds 34%, ..." in English depending on the detected/chosen UI
+  // language, so match the shared numeric pattern instead of the word.
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), {
     timeout: 20000,
   });
 
