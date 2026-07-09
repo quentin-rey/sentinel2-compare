@@ -286,6 +286,10 @@ html, body {
   font-size: 13px;
   color: var(--text);
   transition: transform 0.25s ease, opacity 0.25s ease;
+  /* Without this, `width: 100%` on mobile (below) adds the 14px/16px
+     padding on top of the viewport width instead of inside it, pushing
+     content ~32px past the right edge. */
+  box-sizing: border-box;
 }
 
 #panel.collapsed {
