@@ -9,6 +9,21 @@ test("app loads without console errors", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test("the top bar actually collapses via the ☰ button and the M shortcut", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#panel")).not.toHaveClass(/collapsed/);
+
+  await page.click("#menu-toggle");
+  await expect(page.locator("#panel")).toHaveClass(/collapsed/);
+  await page.click("#menu-toggle");
+  await expect(page.locator("#panel")).not.toHaveClass(/collapsed/);
+
+  await page.keyboard.press("m");
+  await expect(page.locator("#panel")).toHaveClass(/collapsed/);
+  await page.keyboard.press("m");
+  await expect(page.locator("#panel")).not.toHaveClass(/collapsed/);
+});
+
 test("runs a full compare and the slider drags without horizontal overflow", async ({ page }) => {
   await page.goto("/");
   await page.fill("#date1", "2026-06-01");
@@ -77,10 +92,51 @@ test("exports a PNG with the expected filename pattern", async ({ page }) => {
     timeout: 20000,
   });
 
+  // Export lives inside the settings sheet, opened on demand via the ⚙
+  // button — not inline in the always-visible top bar.
+  await page.click("#settings-btn");
   await page.click("#export-png-btn");
   await expect(page.locator("#export-modal")).not.toHaveClass(/hidden/);
   const downloadPromise = page.waitForEvent("download");
   await page.click("#export-modal-confirm");
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toMatch(/^sentinel2_true-color_\d{4}-\d{2}-\d{2}_vs_\d{4}-\d{2}-\d{2}_comparaison_orig\.png$/);
+});
+
+test("settings sheet opens from the gear button and closes on outside click / Escape", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/hidden/);
+
+  await page.click("#settings-btn");
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/open/);
+
+  // Regression check: the settings sheet's outside-click listener used to
+  // attach synchronously within the same click that opens it (via the ⚙
+  // button, which lives outside the sheet's own DOM subtree), so the
+  // opening click itself was immediately treated as an "outside click" and
+  // closed the sheet before it ever appeared. Confirms it stays open.
+  await page.waitForTimeout(100);
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/open/);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/hidden/);
+
+  await page.click("#settings-btn");
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/open/);
+  await page.mouse.click(20, 500); // outside the sheet, over the map
+  await expect(page.locator("#settings-sheet-wrap")).toHaveClass(/hidden/);
+});
+
+test("floating search overlay expands, selects a place, and collapses", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#search-panel")).toHaveCount(0);
+
+  await page.click("#search-toggle-btn");
+  await expect(page.locator("#search-panel")).toBeVisible();
+
+  await page.fill("#place-search", "Lyon");
+  await expect(page.locator("#place-results li").first()).toBeVisible({ timeout: 10000 });
+  await page.locator("#place-results li").first().click();
+
+  await expect(page.locator("#search-panel")).toHaveCount(0);
 });

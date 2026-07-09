@@ -1,5 +1,6 @@
 :root {
   --bg-panel: rgba(255,255,255,0.95);
+  --bg-panel-solid: #ffffff;
   --text: #1c1c1e;
   --text-muted: #5a5a5e;
   --border: #ddd;
@@ -17,6 +18,7 @@
 @media (prefers-color-scheme: dark) {
   :root {
     --bg-panel: rgba(28,28,30,0.95);
+  --bg-panel-solid: #1c1c1e;
     --text: #f0f0f2;
     --text-muted: #a5a5aa;
     --border: #48484a;
@@ -36,6 +38,7 @@
    of the system setting, since [data-theme] adds specificity over bare :root. */
 :root[data-theme="light"] {
   --bg-panel: rgba(255,255,255,0.95);
+  --bg-panel-solid: #ffffff;
   --text: #1c1c1e;
   --text-muted: #5a5a5e;
   --border: #ddd;
@@ -52,6 +55,7 @@
 
 :root[data-theme="dark"] {
   --bg-panel: rgba(28,28,30,0.95);
+  --bg-panel-solid: #1c1c1e;
   --text: #f0f0f2;
   --text-muted: #a5a5aa;
   --border: #48484a;
@@ -366,13 +370,15 @@ html, body {
   line-height: 1.4;
 }
 
-#panel label {
+#panel label,
+#settings-sheet label {
   display: block;
   margin-bottom: 8px;
   font-weight: 600;
 }
 
-#panel input, #panel select {
+#panel input, #panel select,
+#settings-sheet input, #settings-sheet select {
   display: block;
   width: 100%;
   margin-top: 3px;
@@ -385,7 +391,8 @@ html, body {
   border-radius: 4px;
 }
 
-#panel button {
+#panel button,
+#settings-sheet button {
   width: 100%;
   padding: 8px;
   margin-top: 4px;
@@ -397,7 +404,8 @@ html, body {
   cursor: pointer;
 }
 
-#panel button.btn-secondary {
+#panel button.btn-secondary,
+#settings-sheet button.btn-secondary {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-weight: 500;
@@ -410,23 +418,27 @@ html, body {
   color: var(--secondary-text);
 }
 
-#panel button#share-btn {
+#panel button#share-btn,
+#settings-sheet button#share-btn {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   margin-top: 8px;
 }
 
-#panel .row {
+#panel .row,
+#settings-sheet .row {
   display: flex;
   gap: 8px;
 }
 
-#panel .row label {
+#panel .row label,
+#settings-sheet .row label {
   flex: 1;
   min-width: 0;
 }
 
-#panel .row button {
+#panel .row button,
+#settings-sheet .row button {
   flex: 1;
 }
 
@@ -703,6 +715,140 @@ kbd {
   border-bottom: none;
 }
 
+/* --- Compact top bar: date/mode row + gear button --------------------- */
+
+.topbar-mode {
+  align-items: center;
+}
+
+.topbar-mode-label {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+#panel .topbar-mode button#settings-btn {
+  flex: none;
+  width: 34px;
+  padding: 4px;
+  margin-top: 0;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* --- Floating search: collapsed icon expanding into input + dropdown -- */
+
+#search-overlay {
+  position: absolute;
+  top: 110px;
+  right: 12px;
+  z-index: 25;
+}
+
+#search-toggle-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 8px;
+  background: var(--bg-panel);
+  color: var(--text);
+  font-size: 15px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+#search-overlay.open #search-toggle-btn {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+#search-panel {
+  position: absolute;
+  top: 44px;
+  right: 0;
+  width: 240px;
+  background: var(--bg-panel);
+  border-radius: 8px;
+  padding: 10px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+}
+
+#search-panel input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 6px 8px;
+  font-size: 13px;
+  background: var(--page-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+#search-panel #place-results {
+  margin: 8px 0 0;
+}
+
+/* --- Settings sheet: slide-in drawer, not a dimmed modal --------------- */
+
+#settings-sheet-wrap {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 30;
+  pointer-events: none;
+}
+
+#settings-sheet {
+  position: relative;
+  pointer-events: auto;
+  width: 320px;
+  max-width: 90vw;
+  height: 100%;
+  overflow-y: auto;
+  /* Solid, not the translucent --bg-panel: on mobile this sheet stacks
+     directly over the (also translucent) top bar rather than just the map,
+     and 0.95 alpha was letting the bar's text ghost through underneath. */
+  background: var(--bg-panel-solid);
+  color: var(--text);
+  font-size: 13px;
+  padding: 16px;
+  box-sizing: border-box;
+  box-shadow: -2px 0 14px rgba(0,0,0,0.3);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+}
+
+#settings-sheet-wrap.open #settings-sheet {
+  transform: translateX(0);
+}
+
+.settings-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.settings-sheet-header h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+#settings-sheet .settings-sheet-header button.modal-close {
+  position: static;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  margin-top: 0;
+  border-radius: 50%;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
+  font-weight: normal;
+}
+
 @media (max-width: 640px) {
   #shortcuts-btn {
     display: none;
@@ -727,5 +873,26 @@ kbd {
   .compare-label {
     bottom: auto;
     top: 12px;
+  }
+
+  #settings-sheet-wrap {
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    height: auto;
+  }
+
+  #settings-sheet {
+    width: 100%;
+    max-width: none;
+    max-height: 75vh;
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -2px 14px rgba(0,0,0,0.3);
+    transform: translateY(100%);
+  }
+
+  #settings-sheet-wrap.open #settings-sheet {
+    transform: translateY(0);
   }
 }

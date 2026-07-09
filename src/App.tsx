@@ -13,10 +13,10 @@ import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/expor
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
-import { PanelHeader } from "./components/PanelHeader";
-import { PlaceSearchSection } from "./components/PlaceSearchSection";
-import { CompareFormSection } from "./components/CompareFormSection";
-import { ExportSection, type ExportTarget } from "./components/ExportSection";
+import { TopBar } from "./components/TopBar";
+import { SearchOverlay } from "./components/SearchOverlay";
+import { SettingsSheet } from "./components/SettingsSheet";
+import { type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
 import { InfoModal } from "./components/modals/InfoModal";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal";
@@ -74,6 +74,8 @@ export default function App() {
   const [exportTarget, setExportTarget] = useState<ExportTarget>("slide");
   const [status, setStatusState] = useState<{ message: string; isError: boolean }>({ message: "", isError: false });
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsBtnRef = useRef<HTMLButtonElement>(null);
   const [pendingExportKind, setPendingExportKind] = useState<ExportKind | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [animatedBusy, setAnimatedBusy] = useState(false);
@@ -340,6 +342,10 @@ export default function App() {
         if (e.key === "Escape") setActiveModal(null);
         return;
       }
+      if (settingsOpen) {
+        if (e.key === "Escape") setSettingsOpen(false);
+        return;
+      }
       if (e.key.toLowerCase() === "m" && !isFormField(e.target)) {
         menu.toggleMenu();
         return;
@@ -364,7 +370,7 @@ export default function App() {
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDiscardConfirm, pendingExportKind, activeModal, compareMaps.isOpen, menu]);
+  }, [showDiscardConfirm, pendingExportKind, activeModal, settingsOpen, compareMaps.isOpen, menu]);
 
   return (
     <>
@@ -384,64 +390,52 @@ export default function App() {
         ☰
       </button>
 
-      <div id="panel" className={menu.collapsed ? "collapsed" : ""}>
-        <PanelHeader
-          theme={theme.theme}
-          onCycleTheme={theme.cycleTheme}
-          onOpenInfo={() => setActiveModal("info")}
-          onOpenShortcuts={() => setActiveModal("shortcuts")}
-          onOpenInstanceId={() => setActiveModal("instance-id")}
-          hasCustomInstanceId={customInstanceId.trim().length > 0}
-          onGithubClick={() => showToast("Lien GitHub à venir.")}
-        />
-        <p className="hint">Cherche un lieu ou déplace-toi sur la carte, puis choisis deux dates à comparer.</p>
+      <TopBar
+        theme={theme.theme}
+        onCycleTheme={theme.cycleTheme}
+        onOpenInfo={() => setActiveModal("info")}
+        onOpenShortcuts={() => setActiveModal("shortcuts")}
+        onOpenInstanceId={() => setActiveModal("instance-id")}
+        hasCustomInstanceId={customInstanceId.trim().length > 0}
+        onGithubClick={() => showToast("Lien GitHub à venir.")}
+        date1={date1}
+        date2={date2}
+        onDate1Change={setDate1}
+        onDate2Change={setDate2}
+        mode={mode}
+        onModeChange={handleModeChange}
+        isComparing={compareMaps.isOpen}
+        onCompare={() => void handleCompare()}
+        onClose={handleClose}
+        onOpenSettings={() => setSettingsOpen(true)}
+        settingsBtnRef={settingsBtnRef}
+        status={status}
+        collapsed={menu.collapsed}
+      />
+      {!menu.collapsed && (
+        <SearchOverlay query={place.query} onQueryChange={place.setQuery} results={place.results} onSelect={handleSelectPlace} onDismiss={place.clear} />
+      )}
 
-        <PlaceSearchSection
-          query={place.query}
-          onQueryChange={place.setQuery}
-          results={place.results}
-          onSelect={handleSelectPlace}
-          onDismiss={place.clear}
-        />
-
-        <CompareFormSection
-          date1={date1}
-          date2={date2}
-          onDate1Change={setDate1}
-          onDate2Change={setDate2}
-          mode={mode}
-          onModeChange={handleModeChange}
-          priority={priority}
-          onPriorityChange={setPriority}
-          maxCloud={maxCloud}
-          onMaxCloudChange={setMaxCloud}
-          windowDays={windowDays}
-          onWindowDaysChange={setWindowDays}
-          isComparing={compareMaps.isOpen}
-          onCompare={() => void handleCompare()}
-          onClose={handleClose}
-        />
-
-        <ExportSection
-          visible={compareMaps.isOpen}
-          exportTarget={exportTarget}
-          onExportTargetChange={setExportTarget}
-          onOpenExportModal={setPendingExportKind}
-          animatedBusy={animatedBusy}
-          progressText={progressText}
-        />
-
-        <button id="share-btn" onClick={() => void handleShare()}>
-          Copier le lien de partage
-        </button>
-
-        <div
-          id="status"
-          className={`${status.message ? "status-box " : ""}${status.isError ? "status-warning" : status.message ? "status-info" : ""}`}
-        >
-          {status.message}
-        </div>
-      </div>
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        triggerRef={settingsBtnRef}
+        priority={priority}
+        onPriorityChange={setPriority}
+        maxCloud={maxCloud}
+        onMaxCloudChange={setMaxCloud}
+        windowDays={windowDays}
+        onWindowDaysChange={setWindowDays}
+        isComparing={compareMaps.isOpen}
+        exportTarget={exportTarget}
+        onExportTargetChange={setExportTarget}
+        onOpenExportModal={setPendingExportKind}
+        animatedBusy={animatedBusy}
+        progressText={progressText}
+        onShare={() => void handleShare()}
+        onOpenInstanceId={() => setActiveModal("instance-id")}
+        hasCustomInstanceId={customInstanceId.trim().length > 0}
+      />
 
       <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} />
       <ShortcutsModal open={activeModal === "shortcuts"} onClose={() => setActiveModal(null)} />
