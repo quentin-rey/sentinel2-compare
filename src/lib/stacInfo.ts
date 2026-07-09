@@ -143,7 +143,7 @@ export async function fetchDayCloudCover(productId: string): Promise<number> {
 export async function loadSceneData(
   bbox: Bbox,
   targetDateStr: string,
-  { windowDays = 30, maxCloud = 30, priority = "closest" }: LoadSceneDataOptions = {},
+  { windowDays = 14, maxCloud = 30, priority = "closest" }: LoadSceneDataOptions = {},
 ): Promise<LoadSceneDataResult> {
   const target = new Date(targetDateStr + "T00:00:00Z");
   const start = new Date(target.getTime() - windowDays * 86400000);
