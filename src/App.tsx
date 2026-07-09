@@ -170,6 +170,10 @@ export default function App() {
   // explanation.
   useEffect(() => {
     if (compareMaps.quotaExceeded) {
+      // Open the advanced-settings <details> so the "Identifiant CDSE
+      // personnel" field the message below refers to is actually visible,
+      // instead of leaving the visitor to hunt for it.
+      document.getElementById("advanced-details")?.setAttribute("open", "");
       setStatus(
         customInstanceId.trim()
           ? "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné dans les réglages avancés. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus."

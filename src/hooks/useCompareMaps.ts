@@ -132,6 +132,16 @@ export function useCompareMaps() {
   // Only surface one quota warning per compare session — every failed tile
   // in the viewport would otherwise fire its own "error" event.
   const quotaWarnedRef = useRef(false);
+  // Sentinel Hub returns the same HTTP 429 both for real quota exhaustion
+  // *and* for transient per-second rate-limiting — panning/zooming fires many
+  // tile requests at once and can trip the latter briefly even when the
+  // account is nowhere near its real quota. Requiring several 429s with no
+  // successful tile load in between (reset on any successful tile, see
+  // handleTileSuccess below) tells the two apart: a real quota exhaustion
+  // fails *every* subsequent tile, while a rate-limit blip is followed by
+  // normal successful loads once the burst settles.
+  const quotaErrorCountRef = useRef(0);
+  const QUOTA_ERROR_THRESHOLD = 5;
 
   const [isOpen, setIsOpen] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
@@ -209,6 +219,7 @@ export function useCompareMaps() {
       setDatesB([]);
       cloudLoadStartedRef.current = { a: false, b: false };
       quotaWarnedRef.current = false;
+      quotaErrorCountRef.current = 0;
       setQuotaExceeded(false);
 
       const inst = instancesRef.current;
@@ -248,11 +259,21 @@ export function useCompareMaps() {
 
       const handleTileError = (e: { error?: unknown }) => {
         if (quotaWarnedRef.current || !isQuotaErrorEvent(e)) return;
+        quotaErrorCountRef.current += 1;
+        if (quotaErrorCountRef.current < QUOTA_ERROR_THRESHOLD) return;
         quotaWarnedRef.current = true;
         setQuotaExceeded(true);
       };
+      // Any tile that *does* load successfully means we're not actually
+      // locked out — clears the counter so a brief rate-limit burst doesn't
+      // accumulate toward the threshold across an otherwise-healthy session.
+      const handleTileSuccess = (e: { dataType?: string; tile?: unknown }) => {
+        if (e.dataType === "source" && e.tile) quotaErrorCountRef.current = 0;
+      };
       mapA.on("error", handleTileError);
       mapB.on("error", handleTileError);
+      mapA.on("data", handleTileSuccess);
+      mapB.on("data", handleTileSuccess);
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 
@@ -316,6 +337,7 @@ export function useCompareMaps() {
     setDatesB([]);
     cloudLoadStartedRef.current = { a: false, b: false };
     quotaWarnedRef.current = false;
+    quotaErrorCountRef.current = 0;
     setQuotaExceeded(false);
   }, []);
 
