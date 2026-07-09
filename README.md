@@ -109,9 +109,32 @@ function evaluatePixel(sample) {
 frontend) — ce n'est pas un secret, mais **n'importe qui peut l'utiliser et
 consommer ton quota gratuit** s'il le récupère depuis le code source. Pas de
 restriction de domaine mise en place pour l'instant (voir "Limites connues").
-Chaque visiteur peut cependant renseigner son propre Instance ID dans les
-réglages avancés de l'app pour ne pas dépendre du quota partagé (voir
-"Fonctionnalités").
+Chaque visiteur peut cependant renseigner son propre Instance ID depuis le
+bouton 🔑 de l'app pour ne pas dépendre du quota partagé (voir "Identifiant
+CDSE personnel (Bring Your Own ID)" ci-dessous).
+
+## Identifiant CDSE personnel (Bring Your Own ID)
+
+Tous les visiteurs de l'app partagent par défaut le même Instance ID (donc le
+même quota gratuit Sentinel Hub). Si ce quota partagé est épuisé — l'app le
+détecte (HTTP 429) et affiche un message explicite au lieu de tuiles vides —
+ou si tu veux simplement ne jamais en dépendre, tu peux renseigner ton propre
+Instance ID :
+
+1. Clique le bouton 🔑 dans l'en-tête de l'app (ou laisse-le s'ouvrir
+   automatiquement quand le quota partagé est détecté comme épuisé).
+2. Suis les instructions affichées dans la fenêtre : créer un compte CDSE
+   gratuit, créer une configuration, y créer les **4 mêmes layers que ceux
+   listés plus haut** (`TRUE-COLOR`, `FALSE-COLOR`, `TCO-L2A`, `WILDFIRE`,
+   avec les mêmes evalscripts) — sans ces layers aux mêmes noms, les tuiles
+   resteraient vides.
+3. Colle l'Instance ID de cette configuration dans le champ. Il est enregistré
+   uniquement en `localStorage`, sur cet appareil — jamais envoyé nulle part
+   d'autre que directement à Sentinel Hub, exactement comme l'Instance ID
+   partagé par défaut.
+
+Le bouton 🔑 devient bleu/actif quand un identifiant personnel est configuré ;
+un bouton "Revenir au quota partagé" dans la même fenêtre l'efface.
 
 ## Lancer en local
 
@@ -162,20 +185,23 @@ l'app est servie à la racine d'un site utilisateur/organisation.
 - Export PNG/JPEG/GIF/WebM avec réglages (taille, qualité, durée/fluidité pour
   les animations, nom de fichier), bulles d'info datées gravées dans l'export
 - Thème clair/sombre/auto, menu repliable, raccourcis clavier
-- Détection du quota d'imagerie épuisé (HTTP 429 côté Sentinel Hub), avec
-  message explicite au lieu de tuiles vides silencieuses
-- Réglage avancé "Identifiant CDSE personnel" pour utiliser son propre quota
+- Détection du quota d'imagerie épuisé (plusieurs HTTP 429 consécutifs côté
+  Sentinel Hub, pour ne pas confondre avec une simple limitation de débit
+  passagère), avec message explicite au lieu de tuiles vides silencieuses
+- Fenêtre dédiée "Identifiant CDSE personnel" (bouton 🔑, s'ouvre aussi
+  automatiquement en cas de quota épuisé) pour utiliser son propre quota
   gratuit plutôt que le quota partagé par défaut (stocké en local, jamais
-  envoyé nulle part)
+  envoyé nulle part) — voir la section dédiée plus bas
 
 ## Limites connues
 
 - **Quota partagé** : l'Instance ID Sentinel Hub par défaut est visible dans
   le code source et n'est pas protégé — un usage abusif par un tiers
-  consommerait le quota gratuit du compte. L'app détecte maintenant le cas
-  (HTTP 429) et invite à renseigner un identifiant personnel plutôt que de
-  laisser des tuiles vides sans explication, mais rien n'empêche encore
-  l'abus lui-même côté serveur (pas de restriction de domaine ni de proxy).
+  consommerait le quota gratuit du compte. L'app détecte le cas (plusieurs
+  HTTP 429 consécutifs) et invite à renseigner un identifiant personnel
+  (voir "Identifiant CDSE personnel" plus haut) plutôt que de laisser des
+  tuiles vides sans explication, mais rien n'empêche encore l'abus lui-même
+  côté serveur (pas de restriction de domaine ni de proxy).
 - **Nominatim** : rate-limité (~1 req/s), sans clé — suffisant pour un usage
   perso mais pas pour un trafic important.
 - **Export image** : capture exactement ce qui est affiché à l'écran (à la

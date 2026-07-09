@@ -20,6 +20,7 @@ import { ExportSection, type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
 import { InfoModal } from "./components/modals/InfoModal";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal";
+import { InstanceIdModal } from "./components/modals/InstanceIdModal";
 import { ExportSettingsModal, type ExportKind, type ExportConfirmOptions } from "./components/modals/ExportSettingsModal";
 import { ExportDiscardConfirmModal } from "./components/modals/ExportDiscardConfirmModal";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -31,7 +32,7 @@ const RENDER_MODE_LABELS: Record<RenderMode, string> = {
   fire: "Wildfire (CDSE)",
 };
 
-type ActiveModal = "info" | "shortcuts" | null;
+type ActiveModal = "info" | "shortcuts" | "instance-id" | null;
 
 function bboxOf(mapInstance: MapLibreMap): Bbox {
   const b = mapInstance.getBounds();
@@ -170,14 +171,13 @@ export default function App() {
   // explanation.
   useEffect(() => {
     if (compareMaps.quotaExceeded) {
-      // Open the advanced-settings <details> so the "Identifiant CDSE
-      // personnel" field the message below refers to is actually visible,
-      // instead of leaving the visitor to hunt for it.
-      document.getElementById("advanced-details")?.setAttribute("open", "");
+      // Open the dedicated Instance ID modal directly, instead of just
+      // pointing at a setting the visitor then has to go hunt for.
+      setActiveModal("instance-id");
       setStatus(
         customInstanceId.trim()
-          ? "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné dans les réglages avancés. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus."
-          : "Quota d'imagerie partagé épuisé. Renseigne ton propre identifiant CDSE (gratuit) dans les réglages avancés pour ne plus dépendre du quota commun, ou réessaie plus tard.",
+          ? "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus."
+          : "Quota d'imagerie partagé épuisé. Renseigne ton propre identifiant CDSE (gratuit) pour ne plus dépendre du quota commun, ou réessaie plus tard.",
         true,
       );
     }
@@ -390,6 +390,8 @@ export default function App() {
           onCycleTheme={theme.cycleTheme}
           onOpenInfo={() => setActiveModal("info")}
           onOpenShortcuts={() => setActiveModal("shortcuts")}
+          onOpenInstanceId={() => setActiveModal("instance-id")}
+          hasCustomInstanceId={customInstanceId.trim().length > 0}
           onGithubClick={() => showToast("Lien GitHub à venir.")}
         />
         <p className="hint">Cherche un lieu ou déplace-toi sur la carte, puis choisis deux dates à comparer.</p>
@@ -418,8 +420,6 @@ export default function App() {
           isComparing={compareMaps.isOpen}
           onCompare={() => void handleCompare()}
           onClose={handleClose}
-          customInstanceId={customInstanceId}
-          onCustomInstanceIdChange={setCustomInstanceId}
         />
 
         <ExportSection
@@ -445,6 +445,12 @@ export default function App() {
 
       <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} />
       <ShortcutsModal open={activeModal === "shortcuts"} onClose={() => setActiveModal(null)} />
+      <InstanceIdModal
+        open={activeModal === "instance-id"}
+        value={customInstanceId}
+        onChange={setCustomInstanceId}
+        onClose={() => setActiveModal(null)}
+      />
       <ExportSettingsModal
         kind={pendingExportKind}
         computeFilename={computeExportFilename}

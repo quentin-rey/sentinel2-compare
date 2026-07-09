@@ -17,8 +17,6 @@ interface Props {
   isComparing: boolean;
   onCompare: () => void;
   onClose: () => void;
-  customInstanceId: string;
-  onCustomInstanceIdChange: (value: string) => void;
 }
 
 export function CompareFormSection({
@@ -37,8 +35,6 @@ export function CompareFormSection({
   isComparing,
   onCompare,
   onClose,
-  customInstanceId,
-  onCustomInstanceIdChange,
 }: Props) {
   function applyQuickDate(days: number) {
     const base = date2 ? new Date(date2 + "T00:00:00Z") : new Date();
@@ -112,24 +108,6 @@ export function CompareFormSection({
             <input type="number" id="window-days" min={1} max={90} value={windowDays} onChange={(e) => onWindowDaysChange(e.target.value)} />
           </label>
         </div>
-        <label>
-          Identifiant CDSE personnel (optionnel)
-          <input
-            type="text"
-            id="custom-instance-id"
-            placeholder="Utilise le quota partagé par défaut"
-            value={customInstanceId}
-            onChange={(e) => onCustomInstanceIdChange(e.target.value)}
-          />
-        </label>
-        <p className="field-hint">
-          Par défaut, tout le monde partage le même quota d'imagerie gratuit. Si celui-ci est épuisé (ou pour ne
-          jamais en dépendre), crée ton propre identifiant gratuit sur le{" "}
-          <a href="https://shapps.dataspace.copernicus.eu/dashboard/#/configurations" target="_blank" rel="noreferrer">
-            tableau de bord Copernicus
-          </a>{" "}
-          et colle-le ici — il reste enregistré uniquement sur cet appareil.
-        </p>
       </details>
 
       <button id="compare-btn" onClick={onCompare}>

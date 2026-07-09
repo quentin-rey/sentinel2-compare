@@ -5,10 +5,12 @@ interface Props {
   onCycleTheme: () => void;
   onOpenInfo: () => void;
   onOpenShortcuts: () => void;
+  onOpenInstanceId: () => void;
+  hasCustomInstanceId: boolean;
   onGithubClick: () => void;
 }
 
-export function PanelHeader({ theme, onCycleTheme, onOpenInfo, onOpenShortcuts, onGithubClick }: Props) {
+export function PanelHeader({ theme, onCycleTheme, onOpenInfo, onOpenShortcuts, onOpenInstanceId, hasCustomInstanceId, onGithubClick }: Props) {
   return (
     <div className="panel-header">
       <h1>Sentinel-2 Compare</h1>
@@ -18,6 +20,15 @@ export function PanelHeader({ theme, onCycleTheme, onOpenInfo, onOpenShortcuts, 
         </button>
         <button id="shortcuts-btn" type="button" title="Raccourcis clavier" onClick={onOpenShortcuts}>
           ?
+        </button>
+        <button
+          id="instance-id-btn"
+          type="button"
+          className={hasCustomInstanceId ? "has-custom-instance-id" : ""}
+          title={hasCustomInstanceId ? "Identifiant CDSE personnel actif" : "Utiliser mon propre identifiant CDSE (quota)"}
+          onClick={onOpenInstanceId}
+        >
+          🔑
         </button>
         <button id="github-btn" type="button" title="Code source (lien à venir)" onClick={onGithubClick}>
           <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor" aria-hidden="true">

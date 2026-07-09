@@ -321,6 +321,7 @@ html, body {
 #panel button#theme-toggle,
 #panel button#info-btn,
 #panel button#shortcuts-btn,
+#panel button#instance-id-btn,
 #panel button#github-btn {
   width: auto;
   flex: none;
@@ -333,6 +334,11 @@ html, body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+
+#panel button#instance-id-btn.has-custom-instance-id {
+  background: var(--accent);
+  color: var(--accent-contrast);
 }
 
 .panel-section {
@@ -546,7 +552,13 @@ html, body {
   font-size: 17px;
 }
 
-.modal ul {
+.modal h3 {
+  font-size: 14px;
+  margin: 16px 0 6px;
+}
+
+.modal ul,
+.modal ol {
   padding-left: 20px;
   margin: 10px 0;
 }
@@ -558,6 +570,17 @@ html, body {
 .modal-footnote {
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.status-line {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin: 4px 0 12px;
+}
+
+.status-line-active {
+  color: var(--accent);
 }
 
 .modal label {
@@ -624,6 +647,18 @@ html, body {
   background: var(--secondary-bg);
   color: var(--secondary-text);
   font-weight: 500;
+}
+
+.modal button.btn-secondary {
+  padding: 6px 10px;
+  margin: -6px 0 12px;
+  border: none;
+  border-radius: 5px;
+  background: var(--secondary-bg);
+  color: var(--secondary-text);
+  font-weight: 500;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .modal-close {

@@ -49,6 +49,25 @@ test("runs a full compare and the slider drags without horizontal overflow", asy
   expect(overflowing).toBe(false);
 });
 
+test("custom Instance ID modal opens, saves, and persists across reload", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator("#instance-id-modal")).toHaveClass(/hidden/);
+
+  await page.click("#instance-id-btn");
+  await expect(page.locator("#instance-id-modal")).not.toHaveClass(/hidden/);
+
+  await page.fill("#custom-instance-id", "my-test-instance-id");
+  await expect(page.locator("#instance-id-btn")).toHaveClass(/has-custom-instance-id/);
+
+  await page.click("#instance-id-modal-close");
+  await expect(page.locator("#instance-id-modal")).toHaveClass(/hidden/);
+
+  await page.reload();
+  await expect(page.locator("#instance-id-btn")).toHaveClass(/has-custom-instance-id/);
+  await page.click("#instance-id-btn");
+  await expect(page.locator("#custom-instance-id")).toHaveValue("my-test-instance-id");
+});
+
 test("exports a PNG with the expected filename pattern", async ({ page }) => {
   await page.goto("/");
   await page.fill("#date1", "2026-06-01");
