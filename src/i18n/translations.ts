@@ -2,7 +2,7 @@
 // string) translation dictionary. `fr`/`en` must stay structurally
 // identical — the `Translations` type below enforces that at compile time.
 // Rich, multi-paragraph content that mixes prose with links/emphasis
-// (InfoModal, InstanceIdModal's instructions) is deliberately NOT put here:
+// (InfoModal's instructions) is deliberately NOT put here:
 // building HTML out of interpolated strings is fragile, so those components
 // keep two full JSX blocks selected by `lang` instead.
 
@@ -16,8 +16,6 @@ export interface Translations {
   // Navbar
   navAbout: string;
   navShortcuts: string;
-  navInstanceIdActive: string;
-  navInstanceIdInactive: string;
   navGithub: string;
   navThemeTooltip: (p: { themeLabel: string }) => string;
   themeLabelAuto: string;
@@ -78,15 +76,6 @@ export interface Translations {
   kbdEscape: string;
   kbdShift: string;
 
-  // Instance ID modal (atomic bits only — rich body is inline JSX)
-  instanceIdTitle: string;
-  instanceIdActiveStatus: string;
-  instanceIdInactiveStatus: string;
-  instanceIdFieldLabel: string;
-  instanceIdPlaceholder: string;
-  instanceIdRevert: string;
-  instanceIdHowTo: string;
-
   // Export settings modal
   exportOptionsTitle: string;
   sizeLabel: string;
@@ -137,8 +126,6 @@ export interface Translations {
   chooseDates: string;
   dateOrderError: string;
   genericError: string;
-  quotaExceededCustom: string;
-  quotaExceededShared: string;
   exportSuccess: (p: { kind: string }) => string;
   exportError: (p: { kind: string; err: string }) => string;
   animExportSuccess: (p: { label: string }) => string;
@@ -154,11 +141,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     closeAriaLabel: "Fermer",
     menuToggleTooltip: "Basculer le menu (touche M)",
     compareSliderAriaLabel: "Curseur de comparaison",
-    loadingExactDatesBanner: "Chargement des dates exactes en cours… l'aperçu affiché peut être approximatif.",
+    loadingExactDatesBanner: "Recherche de la scène exacte et rendu de l'image en cours…",
     navAbout: "À propos",
     navShortcuts: "Raccourcis clavier",
-    navInstanceIdActive: "Identifiant CDSE personnel actif",
-    navInstanceIdInactive: "Utiliser mon propre identifiant CDSE (quota)",
     navGithub: "Code source (GitHub)",
     navThemeTooltip: ({ themeLabel }) => `Thème : ${themeLabel} — cliquer pour changer`,
     themeLabelAuto: "auto (système)",
@@ -214,14 +199,6 @@ export const translations: Record<"fr" | "en", Translations> = {
     kbdEscape: "Échap",
     kbdShift: "Maj",
 
-    instanceIdTitle: "Identifiant CDSE personnel",
-    instanceIdActiveStatus: "✓ Identifiant personnel actif — tu utilises ton propre quota.",
-    instanceIdInactiveStatus: "Aucun identifiant renseigné — quota partagé utilisé.",
-    instanceIdFieldLabel: "Identifiant CDSE (Instance ID)",
-    instanceIdPlaceholder: "Utilise le quota partagé par défaut",
-    instanceIdRevert: "Revenir au quota partagé",
-    instanceIdHowTo: "Comment l'obtenir (gratuit, ~5 minutes)",
-
     exportOptionsTitle: "Options d'export",
     sizeLabel: "Taille",
     sizeOriginal: "Originale (haute résolution)",
@@ -270,10 +247,6 @@ export const translations: Record<"fr" | "en", Translations> = {
     chooseDates: "Choisis deux dates.",
     dateOrderError: 'La date "avant" doit être antérieure (ou égale) à la date "après".',
     genericError: "Une erreur est survenue.",
-    quotaExceededCustom:
-      "Quota d'imagerie épuisé pour l'identifiant CDSE renseigné. Réessaie plus tard ou vérifie ton quota sur le tableau de bord Copernicus.",
-    quotaExceededShared:
-      "Quota d'imagerie partagé épuisé. Renseigne ton propre identifiant CDSE (gratuit) pour ne plus dépendre du quota commun, ou réessaie plus tard.",
     exportSuccess: ({ kind }) => `Image ${kind} exportée.`,
     exportError: ({ kind, err }) => `Export ${kind} impossible : ${err}`,
     animExportSuccess: ({ label }) => `${label} exporté(e).`,
@@ -287,11 +260,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     closeAriaLabel: "Close",
     menuToggleTooltip: "Toggle menu (M key)",
     compareSliderAriaLabel: "Comparison slider",
-    loadingExactDatesBanner: "Loading exact dates… the preview shown may be approximate.",
+    loadingExactDatesBanner: "Finding the exact scene and rendering the image…",
     navAbout: "About",
     navShortcuts: "Keyboard shortcuts",
-    navInstanceIdActive: "Personal CDSE ID active",
-    navInstanceIdInactive: "Use my own CDSE ID (quota)",
     navGithub: "Source code (GitHub)",
     navThemeTooltip: ({ themeLabel }) => `Theme: ${themeLabel} — click to change`,
     themeLabelAuto: "auto (system)",
@@ -347,14 +318,6 @@ export const translations: Record<"fr" | "en", Translations> = {
     kbdEscape: "Esc",
     kbdShift: "Shift",
 
-    instanceIdTitle: "Personal CDSE ID",
-    instanceIdActiveStatus: "✓ Personal ID active — you're using your own quota.",
-    instanceIdInactiveStatus: "No ID set — shared quota in use.",
-    instanceIdFieldLabel: "CDSE ID (Instance ID)",
-    instanceIdPlaceholder: "Uses the shared quota by default",
-    instanceIdRevert: "Revert to shared quota",
-    instanceIdHowTo: "How to get one (free, ~5 minutes)",
-
     exportOptionsTitle: "Export options",
     sizeLabel: "Size",
     sizeOriginal: "Original (high resolution)",
@@ -403,10 +366,6 @@ export const translations: Record<"fr" | "en", Translations> = {
     chooseDates: "Choose two dates.",
     dateOrderError: 'The "before" date must be earlier than (or equal to) the "after" date.',
     genericError: "An error occurred.",
-    quotaExceededCustom:
-      "Imagery quota exhausted for the CDSE ID you set. Try again later or check your quota on the Copernicus dashboard.",
-    quotaExceededShared:
-      "Shared imagery quota exhausted. Set your own free CDSE ID to stop depending on the common quota, or try again later.",
     exportSuccess: ({ kind }) => `${kind} image exported.`,
     exportError: ({ kind, err }) => `${kind} export failed: ${err}`,
     animExportSuccess: ({ label }) => `${label} exported.`,

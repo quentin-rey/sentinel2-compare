@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
-import { wmtsTileUrl, dayRange, SH_WMTS_HOST } from "../lib/wmts";
-import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "../lib/earthSearch";
+import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
+import { registerScene, cogTileUrl } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
@@ -12,15 +12,13 @@ export interface CompareOpts {
   maxCloud: number;
   windowDays: number;
   priority: "closest" | "leastcloud";
-  // Overrides the app's shared Sentinel Hub Instance ID with the visitor's
-  // own — see useInstanceId / the "Identifiant personnel" advanced setting.
-  instanceId?: string;
 }
 
 // Either a resolved lookup result, or the "metadata unavailable" fallback
-// (STAC request itself failed — still renders a wide-window fallback).
+// (STAC request itself failed — nothing renders for that side either way,
+// same as "not found", just for a different reason).
 export type SceneInfoLike =
-  | { found: true; unknown?: false; bestDate: string; bestCloudCover: number; tileCount: number; count?: number }
+  | { found: true; unknown?: false; bestDate: string; bestCloudCover: number; tileCount: number; count?: number; bestProductId: string }
   | { found: false; unknown?: false; count?: number; tileCount?: number }
   | { found: false; unknown: true };
 
@@ -45,24 +43,6 @@ export interface CompareView {
 
 const DEFAULT_LABEL: LabelState = { text: "", title: "", loading: false };
 
-function resolveTimeParams(requestedDate: string, info: SceneInfoLike, opts: CompareOpts) {
-  if (info.found) {
-    return { timeRange: dayRange(info.bestDate), maxCloud: 100, priority: "mostRecent" as const, instanceId: opts.instanceId };
-  }
-  if (info.unknown) {
-    const target = new Date(requestedDate + "T00:00:00Z");
-    const start = new Date(target.getTime() - opts.windowDays * 86400000).toISOString().slice(0, 10);
-    const end = new Date(target.getTime() + opts.windowDays * 86400000).toISOString().slice(0, 10);
-    return {
-      timeRange: `${start}/${end}`,
-      maxCloud: opts.priority === "leastcloud" ? opts.maxCloud : 100,
-      priority: (opts.priority === "leastcloud" ? "leastCC" : "mostRecent") as "leastCC" | "mostRecent",
-      instanceId: opts.instanceId,
-    };
-  }
-  return null;
-}
-
 function describeScene(label: string, requestedDate: string, info: SceneInfoLike, t: TFunction, lang: Lang): string {
   const date = formatDate(requestedDate, lang);
   if (info.unknown) return t("sceneApprox", { label, date });
@@ -83,17 +63,6 @@ function sceneTooltip(requestedDate: string, info: SceneInfoLike, opts: CompareO
   if (!info.found) return t("tooltipNotFound", { windowDays: opts.windowDays, date });
   const priorityLabel = opts.priority === "leastcloud" ? t("priorityLabelLeastCloud") : t("priorityLabelClosest");
   return t("tooltipFound", { date, priorityLabel, windowDays: opts.windowDays });
-}
-
-// Sentinel Hub returns HTTP 429 once the configuration's processing-unit
-// quota is exhausted for the period, and has also been observed returning
-// 403 for the same underlying cause (e.g. a harder block after sustained
-// heavy use) — MapLibre surfaces either as a plain failed-tile "error"
-// event with no special handling of its own, so a tile just silently stays
-// blank. Detecting it here lets the UI show something actionable instead.
-function isQuotaErrorEvent(e: { error?: unknown }): boolean {
-  const err = e.error as { status?: number; url?: string } | undefined;
-  return (err?.status === 429 || err?.status === 403) && typeof err.url === "string" && err.url.startsWith(SH_WMTS_HOST);
 }
 
 async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
@@ -137,25 +106,11 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     mapB: null,
     swipe: null,
   });
-  // Only surface one quota warning per compare session — every failed tile
-  // in the viewport would otherwise fire its own "error" event.
-  const quotaWarnedRef = useRef(false);
-  // Sentinel Hub returns the same HTTP 429 both for real quota exhaustion
-  // *and* for transient per-second rate-limiting — panning/zooming fires many
-  // tile requests at once and can trip the latter briefly even when the
-  // account is nowhere near its real quota. Requiring several 429s with no
-  // successful tile load in between (reset on any successful tile, see
-  // handleTileSuccess below) tells the two apart: a real quota exhaustion
-  // fails *every* subsequent tile, while a rate-limit blip is followed by
-  // normal successful loads once the burst settles.
-  const quotaErrorCountRef = useRef(0);
-  const QUOTA_ERROR_THRESHOLD = 5;
 
   const [isOpen, setIsOpen] = useState(false);
   // isOpen: some image is showing (single OR split). isComparing: split view
   // with both sides — governs whether the slider/mapB/Export exist.
   const [isComparing, setIsComparing] = useState(false);
-  const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [labelA, setLabelA] = useState<LabelState>(DEFAULT_LABEL);
   const [labelB, setLabelB] = useState<LabelState>(DEFAULT_LABEL);
@@ -202,39 +157,34 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
-  const addCompareLayer = useCallback(
-    (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, requestedDate: string, info: SceneInfoLike, opts: CompareOpts) => {
-      const params = resolveTimeParams(requestedDate, info, opts);
-      if (!params) return;
-      mapInstance.addSource(key, {
-        type: "raster",
-        tiles: [wmtsTileUrl(mode, params.timeRange, params)],
-        tileSize: 256,
-      });
-      mapInstance.addLayer({ id: layerId, type: "raster", source: key });
-    },
-    [],
-  );
-
-  // Swaps the render mode/date of an already-loaded side in place (no
-  // re-fetch of STAC metadata, no map recreation) using MapLibre's
-  // setTiles().
-  const swapLayerMode = useCallback(
-    (
-      mapInstance: MapLibreMap,
-      key: string,
-      mode: RenderMode,
-      requestedDate: string,
-      info: SceneInfoLike,
-      opts: CompareOpts,
-      setLoading: (loading: boolean) => void,
-    ) => {
-      const params = resolveTimeParams(requestedDate, info, opts);
-      const source = mapInstance.getSource(key) as maplibregl.RasterTileSource | undefined;
-      if (!params || !source) return;
+  // Points a side's raster source at a resolved scene's tiles — creates the
+  // source/layer the first time a side gets an image, or tears down and
+  // re-adds it on every later mode change/manual date pick.
+  // registerScene() makes the scene's COG assets available to the s2cog://
+  // protocol handler (lib/cogProtocol.ts), which does the actual per-tile
+  // decode/reprojection/render in a Worker pool.
+  //
+  // Deliberately NOT using the source's own setTiles() to swap the URL in
+  // place: MapLibre's RasterTileSource.load() (unlike VectorTileSource's)
+  // never calls the SourceCache's clearTiles() — it assumes tile content at
+  // a given z/x/y from a given source is immutable forever, so already-
+  // rendered tiles keep showing their *old* pixels after setTiles() even
+  // though the URL template (and therefore the actual image) changed.
+  // Removing and re-adding the source sidesteps that stale-cache behavior.
+  const setSceneLayer = useCallback(
+    (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productId: string, setLoading: (loading: boolean) => void) => {
+      const assets = getSceneAssets(productId);
+      if (!assets) return;
+      registerScene(productId, assets);
+      const url = cogTileUrl(productId, mode);
+      if (mapInstance.getSource(key)) {
+        mapInstance.removeLayer(layerId);
+        mapInstance.removeSource(key);
+      }
       setLoading(true);
       mapInstance.once("idle", () => setLoading(false));
-      source.setTiles([wmtsTileUrl(mode, params.timeRange, params)]);
+      mapInstance.addSource(key, { type: "raster", tiles: [url], tileSize: 256 });
+      mapInstance.addLayer({ id: layerId, type: "raster", source: key });
     },
     [],
   );
@@ -249,9 +199,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLabelB({ text: t("loadingAfter"), title: "", loading: true });
       setDatesA([]);
       setDatesB([]);
-      quotaWarnedRef.current = false;
-      quotaErrorCountRef.current = 0;
-      setQuotaExceeded(false);
 
       const inst = instancesRef.current;
       inst.swipe?.destroy();
@@ -263,7 +210,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         // Should be unreachable — the containers are always mounted (see
         // module doc comment) — but keeps the return type total.
         setIsOpen(false);
-        return { statusMessage: t("internalError"), hasWarning: true, quotaExceeded: false };
+        return { statusMessage: t("internalError"), hasWarning: true };
       }
       const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
@@ -289,36 +236,11 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       inst.mapA = mapA;
       inst.mapB = mapB;
 
-      const handleTileError = (e: { error?: unknown }) => {
-        if (quotaWarnedRef.current || !isQuotaErrorEvent(e)) return;
-        quotaErrorCountRef.current += 1;
-        if (quotaErrorCountRef.current < QUOTA_ERROR_THRESHOLD) return;
-        quotaWarnedRef.current = true;
-        setQuotaExceeded(true);
-      };
-      // Any tile that *does* load successfully means we're not actually
-      // locked out — clears the counter so a brief rate-limit burst doesn't
-      // accumulate toward the threshold across an otherwise-healthy session.
-      const handleTileSuccess = (e: { dataType?: string; tile?: unknown }) => {
-        if (e.dataType === "source" && e.tile) quotaErrorCountRef.current = 0;
-      };
-      mapA.on("error", handleTileError);
-      mapB.on("error", handleTileError);
-      mapA.on("data", handleTileSuccess);
-      mapB.on("data", handleTileSuccess);
       const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
       mapA.on("moveend", handleMoveEnd);
       mapB.on("moveend", handleMoveEnd);
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
-
-      // Instant preview: render *something* right away using a wide,
-      // unpinned date window instead of waiting several seconds on the
-      // metadata lookup before any pixel appears. The exact pinned day
-      // swaps in silently once the real lookup resolves.
-      addCompareLayer(mapA, "layer-a", "src-a", mode, date1, { found: false, unknown: true }, opts);
-      addCompareLayer(mapB, "layer-b", "src-b", mode, date2, { found: false, unknown: true }, opts);
-      setIsResolving(true);
 
       if (mapBWrapRef.current && swiperRef.current && containerRef.current) {
         inst.swipe = createSwipe({
@@ -330,13 +252,17 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         });
       }
 
+      // Unlike the old WMTS renderer, there's no wide-window "instant
+      // preview" possible here — client-side rendering needs a specific
+      // resolved scene's COGs before anything can be drawn at all, so the
+      // loading banner covers the whole lookup instead of just a brief gap.
+      setIsResolving(true);
       const [sceneA, sceneB] = await Promise.all([safeSceneData(bbox, date1, opts), safeSceneData(bbox, date2, opts)]);
       const infoA = sceneA.info as SceneInfoLike;
       const infoB = sceneB.info as SceneInfoLike;
 
-      // Swap the preview tiles for the exact resolved day/scene.
-      swapLayerMode(mapA, "src-a", mode, date1, infoA, opts, (loading) => setLabelA((s) => ({ ...s, loading })));
-      swapLayerMode(mapB, "src-b", mode, date2, infoB, opts, (loading) => setLabelB((s) => ({ ...s, loading })));
+      if (infoA.found) setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
+      if (infoB.found) setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductId, (loading) => setLabelB((s) => ({ ...s, loading })));
       setIsResolving(false);
 
       const prefixBefore = t("labelBefore");
@@ -353,18 +279,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       return {
         statusMessage: `${describeScene(prefixBefore, date1, infoA, t, lang)} ${describeScene(prefixAfter, date2, infoB, t, lang)}`,
         hasWarning,
-        // The STAC metadata lookup above succeeds independently of the WMTS
-        // imagery quota (different CDSE service) — so `hasWarning` can be
-        // false even though tiles are silently failing with 429/403. Report
-        // whether quota was flagged at any point during this call (reading
-        // the ref directly, not the `quotaExceeded` state, since this
-        // callback's own closure can't reliably observe a state update
-        // that happened mid-call) so the caller knows not to clobber the
-        // quota-exceeded status message with a falsely-clean one.
-        quotaExceeded: quotaWarnedRef.current,
       };
     },
-    [addCompareLayer, swapLayerMode, t, lang],
+    [setSceneLayer, t, lang],
   );
 
   // Single-image display — the wizard's first step. Builds only mapA (no
@@ -382,9 +299,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLabelB(DEFAULT_LABEL);
       setDatesA([]);
       setDatesB([]);
-      quotaWarnedRef.current = false;
-      quotaErrorCountRef.current = 0;
-      setQuotaExceeded(false);
 
       const inst = instancesRef.current;
       // Defensive, mirroring runCompare — tears down any prior session
@@ -398,7 +312,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       if (!mapAContainerRef.current) {
         // Should be unreachable — the container is always mounted.
         setIsOpen(false);
-        return { statusMessage: t("internalError"), hasWarning: true, quotaExceeded: false };
+        return { statusMessage: t("internalError"), hasWarning: true };
       }
       const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
@@ -413,30 +327,16 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       });
       inst.mapA = mapA;
 
-      const handleTileError = (e: { error?: unknown }) => {
-        if (quotaWarnedRef.current || !isQuotaErrorEvent(e)) return;
-        quotaErrorCountRef.current += 1;
-        if (quotaErrorCountRef.current < QUOTA_ERROR_THRESHOLD) return;
-        quotaWarnedRef.current = true;
-        setQuotaExceeded(true);
-      };
-      const handleTileSuccess = (e: { dataType?: string; tile?: unknown }) => {
-        if (e.dataType === "source" && e.tile) quotaErrorCountRef.current = 0;
-      };
-      mapA.on("error", handleTileError);
-      mapA.on("data", handleTileSuccess);
       const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
       mapA.on("moveend", handleMoveEnd);
 
       await new Promise<void>((r) => mapA.on("load", () => r()));
 
-      addCompareLayer(mapA, "layer-a", "src-a", mode, date, { found: false, unknown: true }, opts);
       setIsResolving(true);
-
       const sceneA = await safeSceneData(bbox, date, opts);
       const infoA = sceneA.info as SceneInfoLike;
 
-      swapLayerMode(mapA, "src-a", mode, date, infoA, opts, (loading) => setLabelA((s) => ({ ...s, loading })));
+      if (infoA.found) setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
       setIsResolving(false);
 
       const prefixSingle = t("labelSingle");
@@ -446,11 +346,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLastOpts(opts);
 
       const hasWarning = !infoA.found;
-      // See the matching comment in runCompare — quotaWarnedRef (not the
-      // quotaExceeded state) is what's safe to read here.
-      return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning, quotaExceeded: quotaWarnedRef.current };
+      return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning };
     },
-    [addCompareLayer, swapLayerMode, t, lang],
+    [setSceneLayer, t, lang],
   );
 
   const closeCompare = useCallback(() => {
@@ -469,9 +367,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     setLastOpts(null);
     setDatesA([]);
     setDatesB([]);
-    quotaWarnedRef.current = false;
-    quotaErrorCountRef.current = 0;
-    setQuotaExceeded(false);
   }, []);
 
   // Called when the render mode select changes while an image is showing —
@@ -479,53 +374,48 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   const changeMode = useCallback(
     (mode: RenderMode) => {
       const inst = instancesRef.current;
-      if (!inst.mapA || !renderStateA || !lastOpts) return;
-      swapLayerMode(inst.mapA, "src-a", mode, renderStateA.requestedDate, renderStateA.info, lastOpts, (loading) => setLabelA((s) => ({ ...s, loading })));
-      if (inst.mapB && renderStateB) {
-        swapLayerMode(inst.mapB, "src-b", mode, renderStateB.requestedDate, renderStateB.info, lastOpts, (loading) => setLabelB((s) => ({ ...s, loading })));
+      if (!inst.mapA || !renderStateA?.info.found) return;
+      setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
+      if (inst.mapB && renderStateB?.info.found) {
+        setSceneLayer(inst.mapB, "layer-b", "src-b", mode, renderStateB.info.bestProductId, (loading) => setLabelB((s) => ({ ...s, loading })));
       }
     },
-    [renderStateA, renderStateB, lastOpts, swapLayerMode],
+    [renderStateA, renderStateB, setSceneLayer],
   );
 
   // Manually picking a date from a side's picker dropdown — pins that exact
   // day directly (bypassing the STAC "best match" resolution) and updates
   // that side's label/render-state to match.
   const pickManualDate = useCallback(
-    async (side: "a" | "b", dateStr: string, mode: RenderMode, dates: SceneDate[]) => {
+    (side: "a" | "b", dateStr: string, mode: RenderMode, dates: SceneDate[]) => {
       const inst = instancesRef.current;
       const mapInstance = side === "a" ? inst.mapA : inst.mapB;
+      const layerId = side === "a" ? "layer-a" : "layer-b";
       const key = side === "a" ? "src-a" : "src-b";
       const setLabel = side === "a" ? setLabelA : setLabelB;
       const prefix = side === "a" ? (isComparing ? t("labelBefore") : t("labelSingle")) : t("labelAfter");
-      const source = mapInstance?.getSource(key) as maplibregl.RasterTileSource | undefined;
-      if (!mapInstance || !dateStr || !source) return;
-
-      const params = { timeRange: dayRange(dateStr), maxCloud: 100, priority: "mostRecent" as const, instanceId: lastOpts?.instanceId };
-      setLabel((s) => ({ ...s, loading: true }));
-      mapInstance.once("idle", () => setLabel((s) => ({ ...s, loading: false })));
-      source.setTiles([wmtsTileUrl(mode, params.timeRange, params)]);
-
       const chosen = dates.find((d) => d.date === dateStr);
-      let cloudCover = chosen?.cloudCover ?? null;
-      if (chosen && cloudCover == null) {
-        cloudCover = await fetchDayCloudCover(chosen.productId);
-      }
+      if (!mapInstance || !dateStr || !chosen) return;
+
+      setSceneLayer(mapInstance, layerId, key, mode, chosen.productId, (loading) => setLabel((s) => ({ ...s, loading })));
+
+      const cloudCover = chosen.cloudCover ?? 0;
       const updatedInfo: SceneInfoLike = {
         found: true,
         bestDate: dateStr,
-        bestCloudCover: cloudCover ?? 0,
-        tileCount: chosen?.tileCount ?? 1,
+        bestCloudCover: cloudCover,
+        tileCount: chosen.tileCount,
+        bestProductId: chosen.productId,
       };
       if (side === "a") setRenderStateA({ requestedDate: dateStr, info: updatedInfo });
       else setRenderStateB({ requestedDate: dateStr, info: updatedInfo });
       setLabel({
-        text: `${prefix} — ${formatDate(dateStr, lang)} · ${(cloudCover ?? 0).toFixed(0)}% ☁`,
+        text: `${prefix} — ${formatDate(dateStr, lang)} · ${cloudCover.toFixed(0)}% ☁`,
         title: t("manualPickTooltip"),
         loading: false,
       });
     },
-    [lastOpts, t, lang, isComparing],
+    [isComparing, setSceneLayer, t, lang],
   );
 
   const resetSlider = useCallback(() => {
@@ -542,7 +432,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     isOpen,
     isComparing,
     isResolving,
-    quotaExceeded,
     labelA,
     labelB,
     datesA,

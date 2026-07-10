@@ -429,11 +429,6 @@ html, body {
   height: 15px;
 }
 
-#navbar button#instance-id-btn.has-custom-instance-id {
-  background: var(--accent);
-  color: var(--accent-contrast);
-}
-
 .section-title {
   font-size: 11px;
   font-weight: 700;

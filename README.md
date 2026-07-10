@@ -10,15 +10,20 @@ Pages — no application backend.
 - **UI**: React + TypeScript, built with [Vite](https://vite.dev/).
 - **Map**: [MapLibre GL JS](https://maplibre.org/) (no key required),
   OpenStreetMap basemap for navigation.
-- **Sentinel-2 imagery**: rendered server-side by the **WMTS** service of
-  [Copernicus Data Space Ecosystem](https://dataspace.copernicus.eu/)
-  (Sentinel Hub). The frontend calls this WMTS directly from the browser —
-  no backend, deployable as-is on GitHub Pages.
+- **Sentinel-2 imagery**: rendered entirely in the browser from
+  [AWS Earth Search](https://element84.com/earth-search/) (Element84) —
+  a free, no-auth STAC API over the public `sentinel-cogs` S3 bucket.
+  There's no server-side tile renderer to call: the app reads the relevant
+  window of each band's Cloud-Optimized GeoTIFF directly (HTTP range
+  requests), reprojects it from the scene's UTM zone into the requested Web
+  Mercator tile, and applies the render mode's band math — all in a pool of
+  Web Workers (`lib/cogRaster.ts`, `workers/cogTile.worker.ts`), registered
+  with MapLibre as a custom tile protocol (`lib/cogProtocol.ts`). No account,
+  no quota, no Instance ID to configure — same zero-backend deployment as
+  everything else here, just with the rendering moved into the client.
 - **Metadata** (actual acquisition date, cloud cover, missing-data
-  detection): read-only requests to the
-  [Copernicus Data Space Ecosystem OData catalogue](https://catalogue.dataspace.copernicus.eu/odata/v1/Products)
-  — the same source that feeds the WMTS tiles, so it's always consistent
-  with what's actually displayed.
+  detection): read-only requests to the same Earth Search STAC API
+  (`lib/earthSearch.ts`).
 - **Place search**: [Nominatim (OpenStreetMap)](https://nominatim.org/),
   free, no key.
 - **Swipe**: two overlaid MapLibre instances, camera-synchronized, with a
@@ -31,9 +36,10 @@ the browser.
 
 ```
 src/
-  lib/          pure functions / network calls (wmts, stacInfo, geocode,
-                exportImage, animatedExport, swipe, config) — no
-                React dependency
+  lib/          pure functions / network calls (earthSearch, cogRaster,
+                cogProtocol, renderModes, geocode, exportImage,
+                animatedExport, swipe, config) — no React dependency
+  workers/      cogTile.worker.ts — off-main-thread COG decode/render
   hooks/        useBaseMap, useCompareMaps (the app's core: lifecycle of
                 the two MapLibre maps + slider), useTheme,
                 useMenuCollapsed, useToasts, useGeocodeSearch, useLanguage
@@ -45,21 +51,24 @@ tests/          Playwright suite (tests/e2e.spec.ts)
 
 ## Render modes
 
-Defined as "Layers" in the Sentinel Hub configuration (see below):
+Each mode is a small band-math function in `lib/renderModes.ts`, applied
+per-pixel to the decoded COG bands:
 
-| Mode in the app | Sentinel Hub Layer ID | Description |
+| Mode in the app | Bands used | Description |
 |---|---|---|
-| True Color | `TRUE-COLOR` | Natural colors (B04/B03/B02) |
-| False Color | `FALSE-COLOR` | Vegetation in red (B08/B04/B03) |
-| Highlight Optimized Natural Color | `TCO-L2A` | Contrast/gamma/saturation enhanced, highlights preserved |
-| Wildfire | `WILDFIRE` | Custom QuickFire script highlighting fires/burn scars |
+| True Color | B04/B03/B02 | Natural colors |
+| False Color | B08/B04/B03 | Vegetation in red |
+| Highlight Optimized Natural Color | B04/B03/B02 | Contrast/gamma/saturation enhanced, highlights preserved |
+| Wildfire | B02/B03/B04/B11/B12 | SWIR hotspot detection highlighting fires/burn scars |
 
-## Copernicus Data Space Ecosystem setup
-
-Rendering Sentinel-2 imagery needs a one-time CDSE configuration (Instance
-ID + 4 evalscript layers) — see **[SETUP.md](SETUP.md)** for the full
-walkthrough, including how visitors can bring their own personal ID instead
-of depending on the shared default quota.
+These are ports of evalscripts originally written for Sentinel Hub's server
+-side renderer, kept as reference/attribution in
+[`docs/evalscripts/`](docs/evalscripts/) — including
+[`wildfire.js`](docs/evalscripts/wildfire.js) (QuickFire v1.0.0 by
+[Pierre Markuse](https://twitter.com/Pierre_Markuse), CC BY 4.0). The
+wildfire port drops that script's cloud-avoidance refinement, since it
+relies on a cloud-probability band (`CLP`) that isn't a standard Earth
+Search/AWS asset — the core SWIR hotspot detection is unaffected.
 
 ## Running locally
 
@@ -95,9 +104,8 @@ served at the root of a user/organization site.
 ## Features
 
 - Georeferenced swipe comparison (synchronized pan/zoom between the two dates)
-- Instant preview while the exact date resolves (explicit loading banner),
-  so there's never an empty screen
-- 4 render modes (True Color, False Color, HONC, Wildfire)
+- 4 render modes (True Color, False Color, HONC, Wildfire), rendered
+  entirely client-side — no account or quota involved
 - "Closest date" selection priority (a preference, not an exclusion, on the
   cloud-cover threshold — so a smoky scene is never hidden) or
   "least cloudy"
@@ -111,22 +119,23 @@ served at the root of a user/organization site.
   for animations, filename), dated info bubbles burned into the export
 - Light/dark/auto theme, collapsible panel, keyboard shortcuts, FR/EN
   language toggle
-- Detection of exhausted imagery quota (several consecutive HTTP 429s from
-  Sentinel Hub, to avoid confusing it with a transient rate limit), with an
-  explicit message instead of silently blank tiles
-- Dedicated "Personal CDSE ID" window (🔑 button, also opens automatically
-  when the quota runs out) to use your own free quota instead of the shared
-  default one (stored locally, never sent anywhere) — see [SETUP.md](SETUP.md)
 
 ## Known limitations
 
-- **Shared quota**: the default Sentinel Hub Instance ID is visible in the
-  source code and unprotected — abuse by a third party would consume the
-  account's free quota. The app detects this case (several consecutive
-  HTTP 429s) and invites the visitor to set a personal ID (see
-  [SETUP.md](SETUP.md)) instead of leaving blank tiles with no explanation,
-  but nothing yet prevents the abuse itself server-side (no domain
-  restriction or proxy).
+- **Very recent acquisitions**: Earth Search's AWS mirror can lag the
+  official Copernicus archive by hours to days for the most recent
+  Sentinel-2 passes — accepted in exchange for having no imagery quota at
+  all (the app used to query CDSE's own catalogue instead, precisely to
+  avoid this lag, before that catalogue's WMTS quota became the bigger
+  problem).
+- **First-load rendering time**: the first tiles for a newly-picked scene
+  involve live COG range-reads and reprojection math in a Worker — slower
+  than a pre-rendered PNG tile service, especially the first pan into a new
+  area. Already-opened bands/read windows are cached for the rest of the
+  session.
+- **Wildfire mode**: the cloud-avoidance refinement from the original
+  QuickFire script is not reproduced (see above) — an approximation, not a
+  loss of the core hotspot detection.
 - **Nominatim**: rate-limited (~1 req/s), no key — fine for personal use
   but not for significant traffic.
 - **Image export**: captures exactly what's shown on screen (at the
