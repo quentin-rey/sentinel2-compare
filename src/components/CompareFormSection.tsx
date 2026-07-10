@@ -44,11 +44,13 @@ export function CompareFormSection({
 }: Props) {
   const { t } = useTranslation();
   // Local to the "single" stage: has the user asked to add a second date yet?
-  // Reset once we drop back to idle (closing the view) so the next journey
-  // starts from the collapsed prompt again.
+  // Reset whenever we're not in "split" — both dropping all the way back to
+  // idle, and "Fermer" stepping back from split to single — so the next
+  // journey starts from the collapsed prompt again instead of leaving the
+  // date2 field expanded from a previous round.
   const [wantsCompare, setWantsCompare] = useState(false);
   useEffect(() => {
-    if (stage === "idle") setWantsCompare(false);
+    if (stage !== "split") setWantsCompare(false);
   }, [stage]);
 
   const showDate2Field = stage === "split" || (stage === "single" && wantsCompare);
@@ -89,7 +91,7 @@ export function CompareFormSection({
       </div>
 
       {stage === "single" && !wantsCompare && (
-        <button type="button" id="add-compare-date-btn" className="btn-secondary" onClick={() => setWantsCompare(true)}>
+        <button type="button" id="add-compare-date-btn" onClick={() => setWantsCompare(true)}>
           {t("addCompareDatePrompt")}
         </button>
       )}
@@ -152,9 +154,11 @@ export function CompareFormSection({
           {t("compareBtn")}
         </button>
       )}
-      <button id="close-btn" className={stage === "idle" ? "hidden" : ""} onClick={onClose}>
-        {t("closeBtn")}
-      </button>
+      {stage === "split" && (
+        <button id="close-btn" onClick={onClose}>
+          {t("closeBtn")}
+        </button>
+      )}
     </>
   );
 }

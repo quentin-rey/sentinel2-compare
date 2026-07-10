@@ -198,7 +198,7 @@ test("place search finds and selects a location", async ({ page }) => {
   await expect(page.locator("#place-search")).toHaveValue(/Lyon/);
 });
 
-test("a running comparison survives a refresh, but plain browsing doesn't auto-compare", async ({ page }) => {
+test("a running comparison survives a refresh, and 'Fermer' steps back to single (not all the way to browsing)", async ({ page }) => {
   await page.goto("/");
   await runFullCompare(page, "2026-06-01", "2026-07-08");
   await expect(page).toHaveURL(/cmp=2/);
@@ -211,13 +211,20 @@ test("a running comparison survives a refresh, but plain browsing doesn't auto-c
   await expect(page.locator("#map-b-wrap")).not.toHaveClass(/hidden/);
   await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), { timeout: 20000 });
 
-  // Closing the comparison and reloading again should go back to plain
-  // browsing, not silently re-open it.
+  // "Fermer" only exists in split stage, and steps back to the single-image
+  // view (still showing date1) rather than resetting all the way to plain
+  // browsing — there's no button for that anymore, only Escape.
   await page.click("#close-btn");
-  await expect(page).not.toHaveURL(/cmp=/);
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await expect(page).toHaveURL(/cmp=1/);
+  await expect(page).not.toHaveURL(/cmp=2/);
+  await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
+  await expect(page.locator("#close-btn")).toHaveCount(0);
+  await expect(page.locator("#add-compare-date-btn")).toBeVisible();
+
   await page.reload();
-  await page.waitForTimeout(500);
-  await expect(page.locator("#compare")).toHaveClass(/hidden/);
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
 });
 
 test("a displayed single image survives a refresh without auto-upgrading to a comparison", async ({ page }) => {
