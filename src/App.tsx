@@ -8,7 +8,7 @@ import { useToasts } from "./hooks/useToasts";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { useTranslation } from "./hooks/useLanguage";
 import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
-import type { ScenePriority, Bbox } from "./lib/stacInfo";
+import type { ScenePriority, Bbox } from "./lib/earthSearch";
 import type { PlaceResult } from "./lib/geocode";
 import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";

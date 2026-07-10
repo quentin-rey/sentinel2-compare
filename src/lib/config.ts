@@ -14,9 +14,9 @@ export const MODE_LAYERS: Record<RenderMode, string> = {
 };
 
 export const DEFAULT_MAX_CLOUD = 30;
-// Kept small on purpose: the CDSE scene-search query's latency scales with
+// Kept small on purpose: the scene-search query's latency scales with
 // the size of this window (more candidate days = more rows to filter/sort
-// server-side, see lib/stacInfo.ts), and Sentinel-2's ~5-day revisit time
+// server-side, see lib/earthSearch.ts), and Sentinel-2's ~5-day revisit time
 // means ±14 days almost always finds a match anyway. Still user-adjustable
 // via "Paramètres avancés" for sparser-coverage searches.
 export const DEFAULT_WINDOW_DAYS = 14;

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { RenderMode } from "../lib/config";
-import type { ScenePriority } from "../lib/stacInfo";
+import type { ScenePriority } from "../lib/earthSearch";
 import { useTranslation } from "../hooks/useLanguage";
 
 export type CompareStage = "idle" | "single" | "split";

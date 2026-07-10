@@ -1,4 +1,4 @@
-import type { SceneDate } from "../lib/stacInfo";
+import type { SceneDate } from "../lib/earthSearch";
 import { formatDate } from "../utils/format";
 import { useTranslation, type TFunction } from "../hooks/useLanguage";
 import type { Lang } from "../i18n/translations";
@@ -18,14 +18,13 @@ interface Props {
   totalTiles: number;
   selectedDate?: string;
   onSelectDate: (date: string) => void;
-  onOpenPicker: () => void;
 }
 
 // One "Avant"/"Après" label: text + spinner + an optional date picker,
 // shown only when the STAC lookup found more than one distinct day nearby
 // (lets the user pick a specific day when the view spans multiple grid
-// tiles imaged on different days — see lib/stacInfo.ts).
-export function CompareLabel({ side, text, title, loading, dates, totalTiles, selectedDate, onSelectDate, onOpenPicker }: Props) {
+// tiles imaged on different days — see lib/earthSearch.ts).
+export function CompareLabel({ side, text, title, loading, dates, totalTiles, selectedDate, onSelectDate }: Props) {
   const { t, lang } = useTranslation();
   const showPicker = dates.length >= 2;
   const currentDay = selectedDate?.slice(0, 10);
@@ -39,8 +38,6 @@ export function CompareLabel({ side, text, title, loading, dates, totalTiles, se
         className={`date-picker${showPicker ? "" : " hidden"}`}
         title={t("datePickerTooltip")}
         value={currentDay ?? ""}
-        onMouseDown={onOpenPicker}
-        onFocus={onOpenPicker}
         onChange={(e) => onSelectDate(e.target.value)}
       >
         {dates.map((d) => (
