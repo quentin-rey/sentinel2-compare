@@ -205,7 +205,14 @@ export default function App() {
         instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runCompare(date1, date2, mode, opts, view);
-      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
+      // Don't clobber the quota-exceeded status/modal (set by the effect
+      // below) with a falsely-clean "no warning" status — the STAC metadata
+      // lookup that produces this result succeeds independently of the WMTS
+      // imagery quota, so a real quota condition can co-exist with
+      // `hasWarning: false` here.
+      if (!result.quotaExceeded) {
+        setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
+      }
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : t("genericError"), true);
@@ -244,7 +251,14 @@ export default function App() {
         instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runSingle(date1, mode, opts, view);
-      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
+      // Don't clobber the quota-exceeded status/modal (set by the effect
+      // below) with a falsely-clean "no warning" status — the STAC metadata
+      // lookup that produces this result succeeds independently of the WMTS
+      // imagery quota, so a real quota condition can co-exist with
+      // `hasWarning: false` here.
+      if (!result.quotaExceeded) {
+        setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
+      }
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : t("genericError"), true);
