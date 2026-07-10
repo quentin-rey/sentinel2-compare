@@ -78,8 +78,8 @@ export function InstanceIdModal({ open, value, onChange, onClose }: Props) {
             <li>
               Crée-y les 4 layers utilisés par cette app (<code>TRUE-COLOR</code>, <code>FALSE-COLOR</code>,{" "}
               <code>TCO-L2A</code>, <code>WILDFIRE</code>) — les scripts exacts à coller sont dans le{" "}
-              <a href="https://github.com/quentin-rey/sentinel2-compare" target="_blank" rel="noreferrer">
-                README du projet
+              <a href="https://github.com/quentin-rey/sentinel2-compare/blob/main/SETUP.md" target="_blank" rel="noreferrer">
+                SETUP.md du projet
               </a>
               . Sans ces layers (mêmes noms), les tuiles resteront vides.
             </li>
@@ -103,9 +103,9 @@ export function InstanceIdModal({ open, value, onChange, onClose }: Props) {
             </li>
             <li>
               Create the 4 layers used by this app in it (<code>TRUE-COLOR</code>, <code>FALSE-COLOR</code>,{" "}
-              <code>TCO-L2A</code>, <code>WILDFIRE</code>) — the exact scripts to paste are in the{" "}
-              <a href="https://github.com/quentin-rey/sentinel2-compare" target="_blank" rel="noreferrer">
-                project README
+              <code>TCO-L2A</code>, <code>WILDFIRE</code>) — the exact scripts to paste are in the project's{" "}
+              <a href="https://github.com/quentin-rey/sentinel2-compare/blob/main/SETUP.md" target="_blank" rel="noreferrer">
+                SETUP.md
               </a>
               . Without these layers (same names), the tiles will stay blank.
             </li>
