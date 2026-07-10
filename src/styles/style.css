@@ -494,8 +494,6 @@ html, body {
 }
 
 #panel button#share-btn {
-  background: var(--secondary-bg);
-  color: var(--secondary-text);
   margin-top: 8px;
 }
 

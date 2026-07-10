@@ -33,10 +33,10 @@ export function ExportSection({ exportTarget, onExportTargetChange, onOpenExport
       </div>
       <p className="export-label">{t("exportAnimationLabel")}</p>
       <div className="row">
-        <button id="export-gif-btn" className="btn-secondary" disabled={animatedBusy} onClick={() => onOpenExportModal("gif")}>
+        <button id="export-gif-btn" disabled={animatedBusy} onClick={() => onOpenExportModal("gif")}>
           {t("exportGif")}
         </button>
-        <button id="export-webm-btn" className="btn-secondary" disabled={animatedBusy} onClick={() => onOpenExportModal("webm")}>
+        <button id="export-webm-btn" disabled={animatedBusy} onClick={() => onOpenExportModal("webm")}>
           {t("exportWebm")}
         </button>
       </div>

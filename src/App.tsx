@@ -258,6 +258,16 @@ export default function App() {
     compareMaps.closeCompare();
   }
 
+  // The visible "Fermer" button only appears once actually comparing (split
+  // stage) — clicking it steps back to the single-image view instead of
+  // resetting all the way to plain browsing (that full reset is still
+  // reachable via Escape, see the keyboard shortcut below). Re-running
+  // handleDisplay() with the current date1/view is the same "simple
+  // reconstruction" approach already used for the single→split upgrade.
+  function handleCloseToSingle() {
+    void handleDisplay();
+  }
+
   // Keep the base map's own size correct once it's shown again (it was
   // hidden — display:none via CSS — while the compare view was open, and
   // MapLibre can't measure a hidden container).
@@ -525,7 +535,7 @@ export default function App() {
             stage={currentStage()}
             onDisplay={() => void handleDisplay()}
             onCompare={() => void handleCompare()}
-            onClose={handleClose}
+            onClose={handleCloseToSingle}
           />
         </AccordionSection>
 
