@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import type { RenderMode } from "../lib/config";
 import type { ScenePriority } from "../lib/stacInfo";
 import { useTranslation } from "../hooks/useLanguage";
+
+export type CompareStage = "idle" | "single" | "split";
 
 interface Props {
   date1: string;
@@ -15,7 +18,8 @@ interface Props {
   onMaxCloudChange: (value: string) => void;
   windowDays: string;
   onWindowDaysChange: (value: string) => void;
-  isComparing: boolean;
+  stage: CompareStage;
+  onDisplay: () => void;
   onCompare: () => void;
   onClose: () => void;
 }
@@ -33,13 +37,34 @@ export function CompareFormSection({
   onMaxCloudChange,
   windowDays,
   onWindowDaysChange,
-  isComparing,
+  stage,
+  onDisplay,
   onCompare,
   onClose,
 }: Props) {
   const { t } = useTranslation();
+  // Local to the "single" stage: has the user asked to add a second date yet?
+  // Reset once we drop back to idle (closing the view) so the next journey
+  // starts from the collapsed prompt again.
+  const [wantsCompare, setWantsCompare] = useState(false);
+  useEffect(() => {
+    if (stage === "idle") setWantsCompare(false);
+  }, [stage]);
+
+  const showDate2Field = stage === "split" || (stage === "single" && wantsCompare);
+  // Quick-date buttons retarget just once, during the "add a second date"
+  // sub-step: date1 is already fixed by then, so "−1 week" etc. now picks
+  // date2 relative to date1 instead of date1 relative to today/date2 — same
+  // buttons, same labels, just a different anchor for that one step.
+  const quickDatesTargetDate2 = stage === "single" && wantsCompare;
 
   function applyQuickDate(days: number) {
+    if (quickDatesTargetDate2) {
+      const base = new Date(date1 + "T00:00:00Z");
+      base.setUTCDate(base.getUTCDate() - days);
+      onDate2Change(base.toISOString().slice(0, 10));
+      return;
+    }
     const base = date2 ? new Date(date2 + "T00:00:00Z") : new Date();
     base.setUTCDate(base.getUTCDate() - days);
     onDate1Change(base.toISOString().slice(0, 10));
@@ -62,10 +87,19 @@ export function CompareFormSection({
           {t("quickYear")}
         </button>
       </div>
-      <label>
-        {t("date2Label")}
-        <input type="date" id="date2" value={date2} min={date1 || undefined} onChange={(e) => onDate2Change(e.target.value)} />
-      </label>
+
+      {stage === "single" && !wantsCompare && (
+        <button type="button" id="add-compare-date-btn" className="btn-secondary" onClick={() => setWantsCompare(true)}>
+          {t("addCompareDatePrompt")}
+        </button>
+      )}
+
+      {showDate2Field && (
+        <label>
+          {t("date2Label")}
+          <input type="date" id="date2" value={date2} min={date1 || undefined} onChange={(e) => onDate2Change(e.target.value)} />
+        </label>
+      )}
       <label>
         {t("renderLabel")}
         <select id="mode" value={mode} onChange={(e) => onModeChange(e.target.value as RenderMode)}>
@@ -108,10 +142,17 @@ export function CompareFormSection({
         </div>
       </details>
 
-      <button id="compare-btn" onClick={onCompare}>
-        {t("compareBtn")}
-      </button>
-      <button id="close-btn" className={isComparing ? "" : "hidden"} onClick={onClose}>
+      {stage === "idle" && (
+        <button id="display-btn" onClick={onDisplay}>
+          {t("displayBtn")}
+        </button>
+      )}
+      {showDate2Field && (
+        <button id="compare-btn" onClick={onCompare}>
+          {t("compareBtn")}
+        </button>
+      )}
+      <button id="close-btn" className={stage === "idle" ? "hidden" : ""} onClick={onClose}>
         {t("closeBtn")}
       </button>
     </>

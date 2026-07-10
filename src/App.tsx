@@ -16,7 +16,7 @@ import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
 import { Navbar } from "./components/Navbar";
 import { PlaceSearchSection } from "./components/PlaceSearchSection";
-import { CompareFormSection } from "./components/CompareFormSection";
+import { CompareFormSection, type CompareStage } from "./components/CompareFormSection";
 import { AccordionSection } from "./components/AccordionSection";
 import { ExportSection, type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
@@ -64,11 +64,11 @@ export default function App() {
       maxCloud: params.get("cc") || String(DEFAULT_MAX_CLOUD),
       windowDays: params.get("w") || String(DEFAULT_WINDOW_DAYS),
       // Distinct from merely having d1/d2 (those are always present once the
-      // URL has ever been synced — see the effect below) — only re-run the
-      // comparison automatically if one was actually open when this URL was
-      // last written (by a refresh or by "Partage"), not just for every
-      // visit that happens to carry date params.
-      autoRun: params.get("cmp") === "1",
+      // URL has ever been synced — see the effect below) — only restore
+      // whichever of the three stages was actually active when this URL was
+      // last written (by a refresh or by "Partage"), not just because date
+      // params happen to be present.
+      autoStage: (params.get("cmp") === "2" ? "split" : params.get("cmp") === "1" ? "single" : "idle") as CompareStage,
     };
   }, []);
 
@@ -113,7 +113,8 @@ export default function App() {
   const baseMap = useBaseMap(
     { center: initial.center, zoom: initial.zoom },
     (map) => {
-      if (initial.autoRun) void handleCompare(map);
+      if (initial.autoStage === "split") void handleCompare(map);
+      else if (initial.autoStage === "single") void handleDisplay(map);
     },
     () => syncUrlToCurrentState(),
   );
@@ -121,6 +122,10 @@ export default function App() {
 
   function getActiveMap(): MapLibreMap | null {
     return compareMaps.instancesRef.current.mapA ?? baseMap.mapRef.current;
+  }
+
+  function currentStage(): CompareStage {
+    return compareMaps.isComparing ? "split" : compareMaps.isOpen ? "single" : "idle";
   }
 
   // Builds the same lat/lng/zoom/dates/mode/... query params used both by
@@ -135,13 +140,19 @@ export default function App() {
       lng: center.lng.toFixed(5),
       zoom: map.getZoom().toFixed(2),
       d1: date1,
-      d2: date2,
       mode,
       priority,
       cc: maxCloud,
       w: windowDays,
     });
-    if (compareMaps.isOpen) params.set("cmp", "1");
+    // d2 only means anything once actually comparing — omitted otherwise so
+    // a restored/shared "single" session doesn't jump straight to split.
+    if (compareMaps.isComparing) {
+      params.set("d2", date2);
+      params.set("cmp", "2");
+    } else if (compareMaps.isOpen) {
+      params.set("cmp", "1");
+    }
     return params;
   }
 
@@ -159,7 +170,7 @@ export default function App() {
   useEffect(() => {
     syncUrlToCurrentState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date1, date2, mode, priority, maxCloud, windowDays, compareMaps.isOpen]);
+  }, [date1, date2, mode, priority, maxCloud, windowDays, compareMaps.isOpen, compareMaps.isComparing]);
 
   async function handleCompare(preferredMap?: MapLibreMap) {
     if (compareBusyRef.current) return;
@@ -204,6 +215,45 @@ export default function App() {
     }
   }
 
+  // Wizard's first step — resolves just date1 into a single full-bleed
+  // image (compareMaps.runSingle), no second date/slider involved yet.
+  async function handleDisplay(preferredMap?: MapLibreMap) {
+    if (compareBusyRef.current) return;
+    if (!date1) {
+      setStatus(t("chooseDate"), true);
+      return;
+    }
+    const source = preferredMap ?? getActiveMap();
+    if (!source) return;
+
+    compareBusyRef.current = true;
+    try {
+      const view: CompareViewParams = {
+        center: source.getCenter(),
+        zoom: source.getZoom(),
+        bearing: source.getBearing(),
+        pitch: source.getPitch(),
+        bbox: bboxOf(source),
+      };
+      baseMap.mapRef.current?.jumpTo(view);
+
+      const opts: CompareOpts = {
+        maxCloud: Number(maxCloud) || DEFAULT_MAX_CLOUD,
+        windowDays: Number(windowDays) || DEFAULT_WINDOW_DAYS,
+        priority,
+        instanceId: customInstanceId.trim() || undefined,
+      };
+      const result = await compareMaps.runSingle(date1, mode, opts, view);
+      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
+    } catch (err) {
+      console.error(err);
+      setStatus(err instanceof Error ? err.message : t("genericError"), true);
+      compareMaps.closeCompare();
+    } finally {
+      compareBusyRef.current = false;
+    }
+  }
+
   function handleClose() {
     compareMaps.closeCompare();
   }
@@ -224,12 +274,12 @@ export default function App() {
     if (compareMaps.isOpen) compareMaps.changeMode(value);
   }
 
-  // Export has nothing to act on before a compare succeeds — open it
+  // Export has nothing to act on before a comparison succeeds — open it
   // automatically the moment one does, and collapse it again on close so it
   // doesn't linger open and empty for the next session.
   useEffect(() => {
-    setExportOpen(compareMaps.isOpen);
-  }, [compareMaps.isOpen]);
+    setExportOpen(compareMaps.isComparing);
+  }, [compareMaps.isComparing]);
 
   // Sentinel Hub returns HTTP 429 once the (shared, by default) quota is
   // exhausted — surface that plainly instead of leaving blank tiles with no
@@ -336,10 +386,14 @@ export default function App() {
   function handleSelectPlace(result: PlaceResult) {
     const target = getActiveMap();
     if (!target) return;
-    const wasComparing = compareMaps.isOpen;
+    // Captured before the move so the *same* stage that was showing re-runs
+    // at the new location — re-running the wrong one would silently upgrade
+    // a single-image session into a comparison just because the map moved.
+    const stageBeforeMove = currentStage();
 
     function refreshAfterMove() {
-      if (wasComparing) void handleCompare();
+      if (stageBeforeMove === "split") void handleCompare();
+      else if (stageBeforeMove === "single") void handleDisplay();
     }
     target.once("moveend", refreshAfterMove);
 
@@ -399,6 +453,7 @@ export default function App() {
         return;
       }
       if (isFormField(e.target)) return;
+      if (!compareMaps.isComparing) return;
       const swipe = compareMaps.instancesRef.current.swipe;
       if (!swipe) return;
       const step = e.shiftKey ? 0.1 : 0.02;
@@ -413,7 +468,7 @@ export default function App() {
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showDiscardConfirm, pendingExportKind, activeModal, compareMaps.isOpen, menu]);
+  }, [showDiscardConfirm, pendingExportKind, activeModal, compareMaps.isOpen, compareMaps.isComparing, menu]);
 
   return (
     <>
@@ -467,13 +522,14 @@ export default function App() {
             onMaxCloudChange={setMaxCloud}
             windowDays={windowDays}
             onWindowDaysChange={setWindowDays}
-            isComparing={compareMaps.isOpen}
+            stage={currentStage()}
+            onDisplay={() => void handleDisplay()}
             onCompare={() => void handleCompare()}
             onClose={handleClose}
           />
         </AccordionSection>
 
-        {compareMaps.isOpen && (
+        {compareMaps.isComparing && (
           <AccordionSection id="export-section" title={t("sectionExport")} open={exportOpen} onToggle={setExportOpen}>
             <ExportSection
               exportTarget={exportTarget}

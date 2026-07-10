@@ -49,6 +49,8 @@ export interface Translations {
   maxCloudLabel: string;
   maxCloudTooltip: string;
   windowDaysLabel: string;
+  displayBtn: string;
+  addCompareDatePrompt: string;
   compareBtn: string;
   closeBtn: string;
 
@@ -111,8 +113,10 @@ export interface Translations {
   manualPickTooltip: string;
   loadingBefore: string;
   loadingAfter: string;
+  loadingSingle: string;
   labelBefore: string;
   labelAfter: string;
+  labelSingle: string;
 
   // Scene descriptions (useCompareMaps.ts)
   sceneApprox: (p: { label: string; date: string }) => string;
@@ -129,6 +133,7 @@ export interface Translations {
   internalError: string;
 
   // App-level status/toast messages
+  chooseDate: string;
   chooseDates: string;
   dateOrderError: string;
   genericError: string;
@@ -183,8 +188,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     maxCloudTooltip:
       'En mode "Date la plus proche" : préférence, pas une exclusion — si aucune date proche ne passe sous ce seuil, la date la plus proche s\'affiche quand même (ex. fumée d\'incendie).',
     windowDaysLabel: "Fenêtre (jours)",
+    displayBtn: "Afficher",
+    addCompareDatePrompt: "Comparer avec une autre date ?",
     compareBtn: "Comparer",
-    closeBtn: "Fermer la comparaison",
+    closeBtn: "Fermer",
 
     exportImageLabel: "Image",
     exportImageSlide: "Comparaison (slide)",
@@ -239,8 +246,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     manualPickTooltip: "Date choisie manuellement parmi les scènes disponibles.",
     loadingBefore: "Avant — chargement…",
     loadingAfter: "Après — chargement…",
+    loadingSingle: "Chargement…",
     labelBefore: "Avant",
     labelAfter: "Après",
+    labelSingle: "Affiché",
 
     sceneApprox: ({ label, date }) => `${label}: ~${date} (métadonnées indisponibles, date approximative).`,
     sceneNotFound: ({ label, date }) => `⚠️ ${label}: aucune image trouvée près du ${date}.`,
@@ -257,6 +266,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     priorityLabelLeastCloud: "image la moins nuageuse",
     internalError: "Erreur interne : conteneurs de carte introuvables.",
 
+    chooseDate: "Choisis une date.",
     chooseDates: "Choisis deux dates.",
     dateOrderError: 'La date "avant" doit être antérieure (ou égale) à la date "après".',
     genericError: "Une erreur est survenue.",
@@ -311,8 +321,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     maxCloudTooltip:
       'In "Closest date" mode: a preference, not an exclusion — if no nearby date is under this threshold, the closest date is shown anyway (e.g. wildfire smoke).',
     windowDaysLabel: "Window (days)",
+    displayBtn: "Display",
+    addCompareDatePrompt: "Compare with another date?",
     compareBtn: "Compare",
-    closeBtn: "Close comparison",
+    closeBtn: "Close",
 
     exportImageLabel: "Image",
     exportImageSlide: "Comparison (slide)",
@@ -367,8 +379,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     manualPickTooltip: "Date manually chosen among the available scenes.",
     loadingBefore: "Before — loading…",
     loadingAfter: "After — loading…",
+    loadingSingle: "Loading…",
     labelBefore: "Before",
     labelAfter: "After",
+    labelSingle: "Displayed",
 
     sceneApprox: ({ label, date }) => `${label}: ~${date} (metadata unavailable, approximate date).`,
     sceneNotFound: ({ label, date }) => `⚠️ ${label}: no image found near ${date}.`,
@@ -385,6 +399,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     priorityLabelLeastCloud: "least cloudy image",
     internalError: "Internal error: map containers not found.",
 
+    chooseDate: "Choose a date.",
     chooseDates: "Choose two dates.",
     dateOrderError: 'The "before" date must be earlier than (or equal to) the "after" date.',
     genericError: "An error occurred.",

@@ -17,6 +17,7 @@ export function CompareView({ compare, mode }: Props) {
     swiperRef,
     containerRef,
     isOpen,
+    isComparing,
     isResolving,
     labelA,
     labelB,
@@ -35,7 +36,13 @@ export function CompareView({ compare, mode }: Props) {
   return (
     <div id="compare" ref={containerRef} className={isOpen ? "" : "hidden"}>
       <div id="map-a" ref={mapAContainerRef} className="compare-map" />
-      <div id="map-b-wrap" ref={mapBWrapRef} className="compare-map-wrap">
+      {/* Always mounted whenever #compare is (mapBContainerRef/swiperRef must
+          already exist in the DOM the moment runCompare() upgrades a single
+          view into a comparison — see useCompareMaps.ts's module doc comment
+          on the same DOM-timing constraint for mapA/#compare itself). Only
+          *visually* hidden in single mode; no mapB MapLibre instance exists
+          until isComparing, so there's no extra rendering cost. */}
+      <div id="map-b-wrap" ref={mapBWrapRef} className={`compare-map-wrap${isComparing ? "" : " hidden"}`}>
         <div id="map-b" ref={mapBContainerRef} className="compare-map" />
       </div>
       <div
@@ -48,6 +55,7 @@ export function CompareView({ compare, mode }: Props) {
         aria-valuemax={100}
         aria-valuenow={50}
         onDoubleClick={resetSlider}
+        className={isComparing ? "" : "hidden"}
       />
       <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
         <span className="banner-spinner" />
@@ -64,17 +72,19 @@ export function CompareView({ compare, mode }: Props) {
         onSelectDate={(date) => pickManualDate("a", date, mode, datesA)}
         onOpenPicker={() => requestCloudCoverForSide("a")}
       />
-      <CompareLabel
-        side="b"
-        text={labelB.text}
-        title={labelB.title}
-        loading={labelB.loading}
-        dates={datesB}
-        totalTiles={totalTilesB}
-        selectedDate={renderStateB?.info.found ? renderStateB.info.bestDate : undefined}
-        onSelectDate={(date) => pickManualDate("b", date, mode, datesB)}
-        onOpenPicker={() => requestCloudCoverForSide("b")}
-      />
+      {isComparing && (
+        <CompareLabel
+          side="b"
+          text={labelB.text}
+          title={labelB.title}
+          loading={labelB.loading}
+          dates={datesB}
+          totalTiles={totalTilesB}
+          selectedDate={renderStateB?.info.found ? renderStateB.info.bestDate : undefined}
+          onSelectDate={(date) => pickManualDate("b", date, mode, datesB)}
+          onOpenPicker={() => requestCloudCoverForSide("b")}
+        />
+      )}
     </div>
   );
 }

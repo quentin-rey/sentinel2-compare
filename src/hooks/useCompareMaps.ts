@@ -155,6 +155,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   const QUOTA_ERROR_THRESHOLD = 5;
 
   const [isOpen, setIsOpen] = useState(false);
+  // isOpen: some image is showing (single OR split). isComparing: split view
+  // with both sides — governs whether the slider/mapB/Export exist.
+  const [isComparing, setIsComparing] = useState(false);
   const [quotaExceeded, setQuotaExceeded] = useState(false);
   const [isResolving, setIsResolving] = useState(false);
   const [labelA, setLabelA] = useState<LabelState>(DEFAULT_LABEL);
@@ -165,33 +168,40 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   const [renderStateB, setRenderStateB] = useState<SideRenderState | null>(null);
   const [lastOpts, setLastOpts] = useState<CompareOpts | null>(null);
 
-  // mapA/mapB are constructed synchronously inside runCompare(), in the same
-  // tick as the setIsOpen(true) call that removes the "hidden" class from
-  // #compare — but React doesn't commit that DOM change until *after* this
-  // synchronous code finishes (there's no `await` before the map
-  // constructors run). So at construction time the container is still
-  // display:none (zero size), and MapLibre's `trackResize` only listens for
-  // actual window resize events — it has no way to notice its container
-  // silently became visible. Once this effect runs (after the "hidden"
-  // class removal has actually been committed and painted), the container
-  // has its real size, and an explicit resize() re-measures it correctly.
+  // mapA/mapB are constructed synchronously inside runCompare()/runSingle(),
+  // in the same tick as the setIsOpen(true)/setIsComparing(true) call that
+  // removes the "hidden" class from #compare/#map-b-wrap — but React
+  // doesn't commit that DOM change until *after* this synchronous code
+  // finishes (there's no `await` before the map constructors run). So at
+  // construction time the container is still display:none (zero size), and
+  // MapLibre's `trackResize` only listens for actual window resize events —
+  // it has no way to notice its container silently became visible. Once
+  // this effect runs (after the "hidden" class removal has actually been
+  // committed and painted), the container has its real size, and an
+  // explicit resize() re-measures it correctly. Depends on `isComparing`
+  // too, not just `isOpen` — upgrading from single to split flips
+  // #map-b-wrap's own hidden class on a *separate* transition from the one
+  // that first opened #compare, and mapB needs its own resize() at that
+  // later point (mapA was already visible/sized correctly by then).
   useEffect(() => {
     if (!isOpen) return;
     const inst = instancesRef.current;
     inst.mapA?.resize();
     inst.mapB?.resize();
-  }, [isOpen]);
+  }, [isOpen, isComparing]);
 
   // labelA/labelB are plain strings, generated once per compare/date-pick —
   // switching language mid-session wouldn't otherwise update the on-map
   // labels until the next compare. Regenerate them from the stored render
   // state (no network refetch needed) whenever the language changes.
   useEffect(() => {
-    if (!renderStateA || !renderStateB || !lastOpts) return;
-    const prefixBefore = t("labelBefore");
-    const prefixAfter = t("labelAfter");
-    setLabelA((s) => ({ ...s, text: labelFor(prefixBefore, renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang), title: sceneTooltip(renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang) }));
-    setLabelB((s) => ({ ...s, text: labelFor(prefixAfter, renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang), title: sceneTooltip(renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang) }));
+    if (!renderStateA || !lastOpts) return;
+    const prefixA = isComparing ? t("labelBefore") : t("labelSingle");
+    setLabelA((s) => ({ ...s, text: labelFor(prefixA, renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang), title: sceneTooltip(renderStateA.requestedDate, renderStateA.info, lastOpts, t, lang) }));
+    if (isComparing && renderStateB) {
+      const prefixAfter = t("labelAfter");
+      setLabelB((s) => ({ ...s, text: labelFor(prefixAfter, renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang), title: sceneTooltip(renderStateB.requestedDate, renderStateB.info, lastOpts, t, lang) }));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang]);
 
@@ -237,6 +247,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       const { center, zoom, bearing, pitch, bbox } = view;
 
       setIsOpen(true);
+      setIsComparing(true);
       setLabelA({ text: t("loadingBefore"), title: "", loading: true });
       setLabelB({ text: t("loadingAfter"), title: "", loading: true });
       setDatesA([]);
@@ -351,8 +362,94 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     [addCompareLayer, swapLayerMode, t, lang],
   );
 
+  // Single-image display — the wizard's first step. Builds only mapA (no
+  // mapB, no swipe control): a real single-image mode, not a disguised
+  // compare with a hidden second side. Upgrading to a full comparison later
+  // just calls runCompare() again (see the module doc comment on App.tsx's
+  // side of this) rather than trying to carry this map instance over.
+  const runSingle = useCallback(
+    async (date: string, mode: RenderMode, opts: CompareOpts, view: CompareView) => {
+      const { center, zoom, bearing, pitch, bbox } = view;
+
+      setIsOpen(true);
+      setIsComparing(false);
+      setLabelA({ text: t("loadingSingle"), title: "", loading: true });
+      setLabelB(DEFAULT_LABEL);
+      setDatesA([]);
+      setDatesB([]);
+      cloudLoadStartedRef.current = { a: false, b: false };
+      quotaWarnedRef.current = false;
+      quotaErrorCountRef.current = 0;
+      setQuotaExceeded(false);
+
+      const inst = instancesRef.current;
+      // Defensive, mirroring runCompare — tears down any prior session
+      // (single or split) so this always starts from a clean slate.
+      inst.swipe?.destroy();
+      inst.mapA?.remove();
+      inst.mapB?.remove();
+      inst.mapB = null;
+      inst.swipe = null;
+
+      if (!mapAContainerRef.current) {
+        // Should be unreachable — the container is always mounted.
+        setIsOpen(false);
+        return { statusMessage: t("internalError"), hasWarning: true };
+      }
+      const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
+      const mapA = new maplibregl.Map({
+        container: mapAContainerRef.current,
+        style: emptyStyle,
+        center,
+        zoom,
+        bearing,
+        pitch,
+        interactive: true,
+        preserveDrawingBuffer: true,
+      });
+      inst.mapA = mapA;
+
+      const handleTileError = (e: { error?: unknown }) => {
+        if (quotaWarnedRef.current || !isQuotaErrorEvent(e)) return;
+        quotaErrorCountRef.current += 1;
+        if (quotaErrorCountRef.current < QUOTA_ERROR_THRESHOLD) return;
+        quotaWarnedRef.current = true;
+        setQuotaExceeded(true);
+      };
+      const handleTileSuccess = (e: { dataType?: string; tile?: unknown }) => {
+        if (e.dataType === "source" && e.tile) quotaErrorCountRef.current = 0;
+      };
+      mapA.on("error", handleTileError);
+      mapA.on("data", handleTileSuccess);
+      const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
+      mapA.on("moveend", handleMoveEnd);
+
+      await new Promise<void>((r) => mapA.on("load", () => r()));
+
+      addCompareLayer(mapA, "layer-a", "src-a", mode, date, { found: false, unknown: true }, opts);
+      setIsResolving(true);
+
+      const sceneA = await safeSceneData(bbox, date, opts);
+      const infoA = sceneA.info as SceneInfoLike;
+
+      swapLayerMode(mapA, "src-a", mode, date, infoA, opts, (loading) => setLabelA((s) => ({ ...s, loading })));
+      setIsResolving(false);
+
+      const prefixSingle = t("labelSingle");
+      setLabelA({ text: labelFor(prefixSingle, date, infoA, opts, t, lang), title: sceneTooltip(date, infoA, opts, t, lang), loading: false });
+      setDatesA(sceneA.dates);
+      setRenderStateA({ requestedDate: date, info: infoA });
+      setLastOpts(opts);
+
+      const hasWarning = !infoA.found;
+      return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning };
+    },
+    [addCompareLayer, swapLayerMode, t, lang],
+  );
+
   const closeCompare = useCallback(() => {
     setIsOpen(false);
+    setIsComparing(false);
     setIsResolving(false);
     const inst = instancesRef.current;
     inst.swipe?.destroy();
@@ -392,13 +489,16 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     });
   }, []);
 
-  // Called when the render mode select changes while a comparison is open.
+  // Called when the render mode select changes while an image is showing —
+  // swaps mapA alone in single mode, both sides once actually comparing.
   const changeMode = useCallback(
     (mode: RenderMode) => {
       const inst = instancesRef.current;
-      if (!inst.mapA || !inst.mapB || !renderStateA || !renderStateB || !lastOpts) return;
+      if (!inst.mapA || !renderStateA || !lastOpts) return;
       swapLayerMode(inst.mapA, "src-a", mode, renderStateA.requestedDate, renderStateA.info, lastOpts, (loading) => setLabelA((s) => ({ ...s, loading })));
-      swapLayerMode(inst.mapB, "src-b", mode, renderStateB.requestedDate, renderStateB.info, lastOpts, (loading) => setLabelB((s) => ({ ...s, loading })));
+      if (inst.mapB && renderStateB) {
+        swapLayerMode(inst.mapB, "src-b", mode, renderStateB.requestedDate, renderStateB.info, lastOpts, (loading) => setLabelB((s) => ({ ...s, loading })));
+      }
     },
     [renderStateA, renderStateB, lastOpts, swapLayerMode],
   );
@@ -412,7 +512,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       const mapInstance = side === "a" ? inst.mapA : inst.mapB;
       const key = side === "a" ? "src-a" : "src-b";
       const setLabel = side === "a" ? setLabelA : setLabelB;
-      const prefix = side === "a" ? t("labelBefore") : t("labelAfter");
+      const prefix = side === "a" ? (isComparing ? t("labelBefore") : t("labelSingle")) : t("labelAfter");
       const source = mapInstance?.getSource(key) as maplibregl.RasterTileSource | undefined;
       if (!mapInstance || !dateStr || !source) return;
 
@@ -440,7 +540,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         loading: false,
       });
     },
-    [lastOpts, t, lang],
+    [lastOpts, t, lang, isComparing],
   );
 
   const resetSlider = useCallback(() => {
@@ -455,6 +555,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     containerRef,
     instancesRef,
     isOpen,
+    isComparing,
     isResolving,
     quotaExceeded,
     labelA,
@@ -463,6 +564,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     datesB,
     renderStateA,
     renderStateB,
+    runSingle,
     runCompare,
     closeCompare,
     changeMode,
