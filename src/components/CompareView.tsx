@@ -26,7 +26,6 @@ export function CompareView({ compare, mode }: Props) {
     renderStateA,
     renderStateB,
     pickManualDate,
-    requestCloudCoverForSide,
     resetSlider,
   } = compare;
 
@@ -70,7 +69,6 @@ export function CompareView({ compare, mode }: Props) {
         totalTiles={totalTilesA}
         selectedDate={renderStateA?.info.found ? renderStateA.info.bestDate : undefined}
         onSelectDate={(date) => pickManualDate("a", date, mode, datesA)}
-        onOpenPicker={() => requestCloudCoverForSide("a")}
       />
       {isComparing && (
         <CompareLabel
@@ -82,7 +80,6 @@ export function CompareView({ compare, mode }: Props) {
           totalTiles={totalTilesB}
           selectedDate={renderStateB?.info.found ? renderStateB.info.bestDate : undefined}
           onSelectDate={(date) => pickManualDate("b", date, mode, datesB)}
-          onOpenPicker={() => requestCloudCoverForSide("b")}
         />
       )}
     </div>

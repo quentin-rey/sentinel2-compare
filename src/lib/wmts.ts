@@ -15,7 +15,7 @@ export interface WmtsTileOptions {
  * Builds a MapLibre raster tile URL template for a Sentinel-2 WMTS layer.
  *
  * `timeRange` must be an explicit ISO8601 range string ("start/end").
- * Callers resolve which date to request via stacInfo.loadSceneData() first
+ * Callers resolve which date to request via earthSearch.loadSceneData() first
  * and pass that exact day back in here, so the tiles rendered always match
  * the date/cloud-cover reported to the user (previously this function
  * picked its own wide +/-30 day window with PRIORITY=leastCC, which could

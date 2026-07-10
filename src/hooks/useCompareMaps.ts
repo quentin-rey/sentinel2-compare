@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 import { wmtsTileUrl, dayRange, SH_WMTS_HOST } from "../lib/wmts";
-import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "../lib/stacInfo";
+import { loadSceneData, fetchDayCloudCover, type Bbox, type SceneDate } from "../lib/earthSearch";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
@@ -137,10 +137,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     mapB: null,
     swipe: null,
   });
-  // Guards against re-fetching cloud cover every time a picker is re-opened
-  // (mousedown + focus both fire onOpenPicker) — reset whenever a fresh
-  // compare starts.
-  const cloudLoadStartedRef = useRef<{ a: boolean; b: boolean }>({ a: false, b: false });
   // Only surface one quota warning per compare session — every failed tile
   // in the viewport would otherwise fire its own "error" event.
   const quotaWarnedRef = useRef(false);
@@ -253,7 +249,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLabelB({ text: t("loadingAfter"), title: "", loading: true });
       setDatesA([]);
       setDatesB([]);
-      cloudLoadStartedRef.current = { a: false, b: false };
       quotaWarnedRef.current = false;
       quotaErrorCountRef.current = 0;
       setQuotaExceeded(false);
@@ -387,7 +382,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLabelB(DEFAULT_LABEL);
       setDatesA([]);
       setDatesB([]);
-      cloudLoadStartedRef.current = { a: false, b: false };
       quotaWarnedRef.current = false;
       quotaErrorCountRef.current = 0;
       setQuotaExceeded(false);
@@ -475,30 +469,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     setLastOpts(null);
     setDatesA([]);
     setDatesB([]);
-    cloudLoadStartedRef.current = { a: false, b: false };
     quotaWarnedRef.current = false;
     quotaErrorCountRef.current = 0;
     setQuotaExceeded(false);
-  }, []);
-
-  // Cloud cover isn't fetched upfront for every candidate day (see
-  // lib/stacInfo.ts — each lookup is its own network round-trip, and most
-  // days in the picker will never be looked at). Instead it's fetched
-  // lazily, only once the user actually opens this side's dropdown, in
-  // parallel for every day still missing it.
-  const requestCloudCoverForSide = useCallback((side: "a" | "b") => {
-    if (cloudLoadStartedRef.current[side]) return;
-    cloudLoadStartedRef.current[side] = true;
-    const setDates = side === "a" ? setDatesA : setDatesB;
-    setDates((current) => {
-      for (const d of current) {
-        if (d.cloudCover != null) continue;
-        fetchDayCloudCover(d.productId).then((cloud) => {
-          setDates((prev) => prev.map((entry) => (entry.date === d.date ? { ...entry, cloudCover: cloud } : entry)));
-        });
-      }
-      return current;
-    });
   }, []);
 
   // Called when the render mode select changes while an image is showing —
@@ -581,7 +554,6 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     closeCompare,
     changeMode,
     pickManualDate,
-    requestCloudCoverForSide,
     resetSlider,
   };
 }
