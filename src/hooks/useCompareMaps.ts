@@ -268,7 +268,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         // Should be unreachable — the containers are always mounted (see
         // module doc comment) — but keeps the return type total.
         setIsOpen(false);
-        return { statusMessage: t("internalError"), hasWarning: true };
+        return { statusMessage: t("internalError"), hasWarning: true, quotaExceeded: false };
       }
       const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
@@ -358,6 +358,15 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       return {
         statusMessage: `${describeScene(prefixBefore, date1, infoA, t, lang)} ${describeScene(prefixAfter, date2, infoB, t, lang)}`,
         hasWarning,
+        // The STAC metadata lookup above succeeds independently of the WMTS
+        // imagery quota (different CDSE service) — so `hasWarning` can be
+        // false even though tiles are silently failing with 429/403. Report
+        // whether quota was flagged at any point during this call (reading
+        // the ref directly, not the `quotaExceeded` state, since this
+        // callback's own closure can't reliably observe a state update
+        // that happened mid-call) so the caller knows not to clobber the
+        // quota-exceeded status message with a falsely-clean one.
+        quotaExceeded: quotaWarnedRef.current,
       };
     },
     [addCompareLayer, swapLayerMode, t, lang],
@@ -395,7 +404,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       if (!mapAContainerRef.current) {
         // Should be unreachable — the container is always mounted.
         setIsOpen(false);
-        return { statusMessage: t("internalError"), hasWarning: true };
+        return { statusMessage: t("internalError"), hasWarning: true, quotaExceeded: false };
       }
       const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
@@ -443,7 +452,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLastOpts(opts);
 
       const hasWarning = !infoA.found;
-      return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning };
+      // See the matching comment in runCompare — quotaWarnedRef (not the
+      // quotaExceeded state) is what's safe to read here.
+      return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning, quotaExceeded: quotaWarnedRef.current };
     },
     [addCompareLayer, swapLayerMode, t, lang],
   );
