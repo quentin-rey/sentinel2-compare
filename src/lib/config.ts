@@ -9,8 +9,8 @@ export type RenderMode = "true-color" | "false-color" | "honc" | "fire";
 export const MODE_LAYERS: Record<RenderMode, string> = {
   "true-color": "TRUE-COLOR",
   "false-color": "FALSE-COLOR",
-  honc: "TCO-L2A", // HONC custom script (cbrt(0.6x)), pasted into the L2A "TCO" layer
-  fire: "WILDFIRE", // built-in CDSE template, not the custom QuickFire script
+  honc: "TCO-L2A", // HONC contrast/gamma/saturation script, pasted into the L2A "TCO" layer (see README)
+  fire: "WILDFIRE", // QuickFire script by Pierre Markuse, pasted into this layer (see README)
 };
 
 export const DEFAULT_MAX_CLOUD = 30;
