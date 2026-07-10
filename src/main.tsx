@@ -4,6 +4,9 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import "./styles/style.css";
 import App from "./App.tsx";
 import { LanguageProvider } from "./hooks/useLanguage";
+import { registerCogProtocol } from "./lib/cogProtocol";
+
+registerCogProtocol();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

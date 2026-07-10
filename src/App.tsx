@@ -3,7 +3,6 @@ import { useBaseMap } from "./hooks/useBaseMap";
 import { useCompareMaps, type CompareOpts, type CompareView as CompareViewParams } from "./hooks/useCompareMaps";
 import { useTheme } from "./hooks/useTheme";
 import { useMenuCollapsed } from "./hooks/useMenuCollapsed";
-import { useLocalStorageState } from "./hooks/useLocalStorageState";
 import { useToasts } from "./hooks/useToasts";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { useTranslation } from "./hooks/useLanguage";
@@ -22,7 +21,6 @@ import { ExportSection, type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
 import { InfoModal } from "./components/modals/InfoModal";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal";
-import { InstanceIdModal } from "./components/modals/InstanceIdModal";
 import { ExportSettingsModal, type ExportKind, type ExportConfirmOptions } from "./components/modals/ExportSettingsModal";
 import { ExportDiscardConfirmModal } from "./components/modals/ExportDiscardConfirmModal";
 import type { Map as MapLibreMap } from "maplibre-gl";
@@ -31,10 +29,10 @@ const RENDER_MODE_LABELS: Record<RenderMode, string> = {
   "true-color": "True Color",
   "false-color": "False Color",
   honc: "Highlight Optimized Natural Color",
-  fire: "Wildfire (CDSE)",
+  fire: "Wildfire",
 };
 
-type ActiveModal = "info" | "shortcuts" | "instance-id" | null;
+type ActiveModal = "info" | "shortcuts" | null;
 
 function bboxOf(mapInstance: MapLibreMap): Bbox {
   const b = mapInstance.getBounds();
@@ -99,10 +97,6 @@ export default function App() {
   const { toasts, showToast } = useToasts();
   const place = useGeocodeSearch();
   const { t } = useTranslation();
-  // Lets a visitor use their own free CDSE Instance ID instead of the app's
-  // shared default one, so their usage draws from their own quota — see the
-  // "Identifiant personnel" advanced setting.
-  const [customInstanceId, setCustomInstanceId] = useLocalStorageState("s2compare-instance-id", "");
 
   function setStatus(message: string, isError = false) {
     setStatusState({ message, isError });
@@ -202,17 +196,9 @@ export default function App() {
         maxCloud: Number(maxCloud) || DEFAULT_MAX_CLOUD,
         windowDays: Number(windowDays) || DEFAULT_WINDOW_DAYS,
         priority,
-        instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runCompare(date1, date2, mode, opts, view);
-      // Don't clobber the quota-exceeded status/modal (set by the effect
-      // below) with a falsely-clean "no warning" status — the STAC metadata
-      // lookup that produces this result succeeds independently of the WMTS
-      // imagery quota, so a real quota condition can co-exist with
-      // `hasWarning: false` here.
-      if (!result.quotaExceeded) {
-        setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
-      }
+      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : t("genericError"), true);
@@ -248,17 +234,9 @@ export default function App() {
         maxCloud: Number(maxCloud) || DEFAULT_MAX_CLOUD,
         windowDays: Number(windowDays) || DEFAULT_WINDOW_DAYS,
         priority,
-        instanceId: customInstanceId.trim() || undefined,
       };
       const result = await compareMaps.runSingle(date1, mode, opts, view);
-      // Don't clobber the quota-exceeded status/modal (set by the effect
-      // below) with a falsely-clean "no warning" status — the STAC metadata
-      // lookup that produces this result succeeds independently of the WMTS
-      // imagery quota, so a real quota condition can co-exist with
-      // `hasWarning: false` here.
-      if (!result.quotaExceeded) {
-        setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
-      }
+      setStatus(result.hasWarning ? result.statusMessage : "", result.hasWarning);
     } catch (err) {
       console.error(err);
       setStatus(err instanceof Error ? err.message : t("genericError"), true);
@@ -304,19 +282,6 @@ export default function App() {
   useEffect(() => {
     setExportOpen(compareMaps.isComparing);
   }, [compareMaps.isComparing]);
-
-  // Sentinel Hub returns HTTP 429 once the (shared, by default) quota is
-  // exhausted — surface that plainly instead of leaving blank tiles with no
-  // explanation.
-  useEffect(() => {
-    if (compareMaps.quotaExceeded) {
-      // Open the dedicated Instance ID modal directly, instead of just
-      // pointing at a setting the visitor then has to go hunt for.
-      setActiveModal("instance-id");
-      setStatus(customInstanceId.trim() ? t("quotaExceededCustom") : t("quotaExceededShared"), true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [compareMaps.quotaExceeded]);
 
   // --- Export -----------------------------------------------------------------
 
@@ -507,8 +472,6 @@ export default function App() {
         onThemeChange={theme.setTheme}
         onOpenInfo={() => setActiveModal("info")}
         onOpenShortcuts={() => setActiveModal("shortcuts")}
-        onOpenInstanceId={() => setActiveModal("instance-id")}
-        hasCustomInstanceId={customInstanceId.trim().length > 0}
       />
 
       <button
@@ -581,12 +544,6 @@ export default function App() {
 
       <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} />
       <ShortcutsModal open={activeModal === "shortcuts"} onClose={() => setActiveModal(null)} />
-      <InstanceIdModal
-        open={activeModal === "instance-id"}
-        value={customInstanceId}
-        onChange={setCustomInstanceId}
-        onClose={() => setActiveModal(null)}
-      />
       <ExportSettingsModal
         kind={pendingExportKind}
         computeFilename={computeExportFilename}

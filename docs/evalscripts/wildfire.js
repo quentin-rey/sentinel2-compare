@@ -1,3 +1,9 @@
+// Original Sentinel Hub evalscript (kept as reference/attribution) — the
+// source lib/renderModes.ts's "fire" port was written against (dropping the
+// CLP-based cloud-avoidance term, since CLP isn't a standard Earth Search
+// asset; see README.md's "Render modes" section). No longer executed by
+// this app directly.
+//
 // VERSION=3
 // QuickFire V1.0.0 by Pierre Markuse (https://twitter.com/Pierre_Markuse)
 // Made for use in the Sentinel Hub EO Browser (https://apps.sentinel-hub.com/eo-browser/?)

@@ -1,3 +1,7 @@
+// Original Sentinel Hub evalscript (kept as reference/attribution) — the
+// source lib/renderModes.ts's "honc" port was written against. No longer
+// executed by this app (rendering moved to client-side COG decoding), see
+// README.md's "Render modes" section.
 //VERSION=3
 // Highlight Optimized Natural Color
 function setup() {

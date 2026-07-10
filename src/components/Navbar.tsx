@@ -9,8 +9,6 @@ interface Props {
   onThemeChange: (theme: Theme) => void;
   onOpenInfo: () => void;
   onOpenShortcuts: () => void;
-  onOpenInstanceId: () => void;
-  hasCustomInstanceId: boolean;
 }
 
 const THEME_ORDER: Theme[] = ["dark", "light", "auto"];
@@ -47,7 +45,7 @@ function ThemeIcon({ theme }: { theme: Theme }) {
   );
 }
 
-export function Navbar({ theme, onThemeChange, onOpenInfo, onOpenShortcuts, onOpenInstanceId, hasCustomInstanceId }: Props) {
+export function Navbar({ theme, onThemeChange, onOpenInfo, onOpenShortcuts }: Props) {
   const { lang, setLang, t } = useTranslation();
   const themeLabelFor = (th: Theme) => (th === "auto" ? t("themeLabelAuto") : th === "light" ? t("themeLabelLight") : t("themeLabelDark"));
 
@@ -78,17 +76,6 @@ export function Navbar({ theme, onThemeChange, onOpenInfo, onOpenShortcuts, onOp
         </button>
         <button id="shortcuts-btn" type="button" title={t("navShortcuts")} onClick={onOpenShortcuts}>
           ?
-        </button>
-        <button
-          id="instance-id-btn"
-          type="button"
-          className={hasCustomInstanceId ? "has-custom-instance-id" : ""}
-          title={hasCustomInstanceId ? t("navInstanceIdActive") : t("navInstanceIdInactive")}
-          onClick={onOpenInstanceId}
-        >
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v4h4v-4h2v-4H12.65zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z" />
-          </svg>
         </button>
         <a id="github-btn" href={GITHUB_REPO_URL} target="_blank" rel="noreferrer" title={t("navGithub")}>
           <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">

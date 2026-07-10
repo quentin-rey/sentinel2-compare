@@ -108,7 +108,7 @@ export function CompareFormSection({
           <option value="true-color">True Color</option>
           <option value="false-color">False Color</option>
           <option value="honc">Highlight Optimized Natural Color</option>
-          <option value="fire">Wildfire (CDSE)</option>
+          <option value="fire">Wildfire</option>
         </select>
       </label>
       <label>

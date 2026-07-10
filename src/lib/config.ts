@@ -1,16 +1,13 @@
-// Instance ID from your Copernicus Data Space Ecosystem "Configuration Utility"
-// (https://shapps.dataspace.copernicus.eu/dashboard/#/configurations).
-// Public by design (embedded in the frontend) — it identifies your quota, not a secret.
-export const SH_INSTANCE_ID = "fec3f31d-086f-4d6e-af7c-cc751e1a3557";
-
 export type RenderMode = "true-color" | "false-color" | "honc" | "fire";
 
-// Must match the Layer IDs created in the CDSE configuration.
-export const MODE_LAYERS: Record<RenderMode, string> = {
-  "true-color": "TRUE-COLOR",
-  "false-color": "FALSE-COLOR",
-  honc: "TCO-L2A", // HONC contrast/gamma/saturation script, pasted into the L2A "TCO" layer (see README)
-  fire: "WILDFIRE", // QuickFire script by Pierre Markuse, pasted into this layer (see README)
+// Earth Search / AWS "sentinel-cogs" asset keys each render mode needs —
+// see lib/renderModes.ts for the pixel math applied to them (ported from
+// the evalscripts in docs/evalscripts/).
+export const RENDER_MODE_BANDS: Record<RenderMode, string[]> = {
+  "true-color": ["red", "green", "blue"],
+  "false-color": ["nir", "red", "green"],
+  honc: ["red", "green", "blue"],
+  fire: ["blue", "green", "red", "swir16", "swir22"],
 };
 
 export const DEFAULT_MAX_CLOUD = 30;

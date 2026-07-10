@@ -11,6 +11,14 @@
 // That lag is back in exchange for no longer depending on a shared quota.
 const EARTH_SEARCH_ENDPOINT = "https://earth-search.aws.element84.com/v1/search";
 
+// Band-asset hrefs + UTM zone for a resolved scene — shape matches
+// lib/cogRaster.ts's SceneAssets (the client-side COG renderer), declared
+// separately here to keep this module's only dependency an HTTP fetch.
+export interface SceneAssets {
+  epsg: number;
+  assets: Record<string, string>;
+}
+
 export type Bbox = [west: number, south: number, east: number, north: number];
 
 export type ScenePriority = "closest" | "leastcloud";
@@ -27,6 +35,7 @@ export interface SceneInfo {
   tileCount: number;
   bestDate?: string;
   bestCloudCover?: number;
+  bestProductId?: string;
 }
 
 export interface SceneDate {
@@ -48,7 +57,39 @@ interface StacFeature {
     datetime: string;
     "eo:cloud_cover"?: number;
     "grid:code"?: string;
+    "proj:epsg"?: number;
   };
+  assets: Record<string, { href: string }>;
+}
+
+// Full items (assets + UTM zone) are cached by id as search results come in
+// — the renderer looks a scene's assets up here once its day is picked,
+// with no extra network round-trip. Capped defensively; a long session
+// browsing many dates shouldn't grow this unboundedly.
+const ITEM_CACHE_LIMIT = 100;
+const itemCache = new Map<string, StacFeature>();
+
+function cacheItem(feature: StacFeature): void {
+  if (itemCache.size >= ITEM_CACHE_LIMIT && !itemCache.has(feature.id)) {
+    const oldest = itemCache.keys().next().value;
+    if (oldest !== undefined) itemCache.delete(oldest);
+  }
+  itemCache.set(feature.id, feature);
+}
+
+// Asset keys used by lib/config.ts's RENDER_MODE_BANDS.
+const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "swir16", "swir22"];
+
+export function getSceneAssets(productId: string): SceneAssets | undefined {
+  const item = itemCache.get(productId);
+  const epsg = item?.properties["proj:epsg"];
+  if (!item || !epsg) return undefined;
+  const assets: Record<string, string> = {};
+  for (const key of BAND_ASSET_KEYS) {
+    const href = item.assets[key]?.href;
+    if (href) assets[key] = href;
+  }
+  return { epsg, assets };
 }
 
 interface DayEntry {
@@ -67,22 +108,6 @@ function tileCodeFromGridCode(gridCode: string | undefined, fallback: string): s
   return gridCode.startsWith("MGRS-") ? gridCode.slice(5) : gridCode;
 }
 
-// Used as a fallback when a manually-typed date isn't among the days
-// already fetched by loadSceneData (so its cloud cover isn't known yet) —
-// mirrors the old CDSE per-product detail fetch, kept for interface parity
-// even though loadSceneData's own results always carry cloud cover inline.
-export async function fetchDayCloudCover(productId: string): Promise<number> {
-  try {
-    const res = await fetch(`https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/${productId}`);
-    if (!res.ok) return 100;
-    const item = await res.json();
-    const cloudCover = item?.properties?.["eo:cloud_cover"];
-    return typeof cloudCover === "number" ? cloudCover : 100;
-  } catch {
-    return 100;
-  }
-}
-
 async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacFeature[]> {
   const params = new URLSearchParams({
     collections: "sentinel-2-l2a",
@@ -96,7 +121,9 @@ async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacF
     throw new Error(`Recherche de métadonnées échouée (HTTP ${res.status}).`);
   }
   const json = await res.json();
-  return json.features || [];
+  const features: StacFeature[] = json.features || [];
+  for (const f of features) cacheItem(f);
+  return features;
 }
 
 /**
@@ -163,6 +190,7 @@ export async function loadSceneData(
         tileCount: allTiles.size,
         bestDate: best.date,
         bestCloudCover: best.cloudCover!,
+        bestProductId: best.productId,
       };
     }
   } else {
@@ -179,6 +207,7 @@ export async function loadSceneData(
       tileCount: allTiles.size,
       bestDate: best.date,
       bestCloudCover: best.cloudCover ?? 100,
+      bestProductId: best.productId,
     };
   }
 
