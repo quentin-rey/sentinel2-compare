@@ -86,13 +86,14 @@ function sceneTooltip(requestedDate: string, info: SceneInfoLike, opts: CompareO
 }
 
 // Sentinel Hub returns HTTP 429 once the configuration's processing-unit
-// quota is exhausted for the period — MapLibre surfaces that as a plain
-// failed-tile "error" event with no special handling of its own, so a tile
-// just silently stays blank. Detecting it here lets the UI show something
-// actionable instead.
+// quota is exhausted for the period, and has also been observed returning
+// 403 for the same underlying cause (e.g. a harder block after sustained
+// heavy use) — MapLibre surfaces either as a plain failed-tile "error"
+// event with no special handling of its own, so a tile just silently stays
+// blank. Detecting it here lets the UI show something actionable instead.
 function isQuotaErrorEvent(e: { error?: unknown }): boolean {
   const err = e.error as { status?: number; url?: string } | undefined;
-  return err?.status === 429 && typeof err.url === "string" && err.url.startsWith(SH_WMTS_HOST);
+  return (err?.status === 429 || err?.status === 403) && typeof err.url === "string" && err.url.startsWith(SH_WMTS_HOST);
 }
 
 async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
