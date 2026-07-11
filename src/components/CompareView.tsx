@@ -6,9 +6,15 @@ import { useTranslation } from "../hooks/useLanguage";
 interface Props {
   compare: UseCompareMapsResult;
   mode: RenderMode;
+  // Manually picking a date from a label's dropdown (the "infobulle" picker)
+  // only updated the rendered scene, not App.tsx's date1/date2 — so the
+  // share link and a later "Comparer" click both silently reverted to the
+  // sidebar's original dates instead of the one actually being shown. This
+  // keeps them in sync with whatever's picked here.
+  onManualDateChange: (side: "a" | "b", date: string) => void;
 }
 
-export function CompareView({ compare, mode }: Props) {
+export function CompareView({ compare, mode, onManualDateChange }: Props) {
   const { t } = useTranslation();
   const {
     mapAContainerRef,
@@ -68,7 +74,10 @@ export function CompareView({ compare, mode }: Props) {
         dates={datesA}
         totalTiles={totalTilesA}
         selectedDate={renderStateA?.info.found ? renderStateA.info.bestDate : undefined}
-        onSelectDate={(date) => pickManualDate("a", date, mode, datesA)}
+        onSelectDate={(date) => {
+          pickManualDate("a", date, mode, datesA);
+          onManualDateChange("a", date);
+        }}
       />
       {isComparing && (
         <CompareLabel
@@ -79,7 +88,10 @@ export function CompareView({ compare, mode }: Props) {
           dates={datesB}
           totalTiles={totalTilesB}
           selectedDate={renderStateB?.info.found ? renderStateB.info.bestDate : undefined}
-          onSelectDate={(date) => pickManualDate("b", date, mode, datesB)}
+          onSelectDate={(date) => {
+            pickManualDate("b", date, mode, datesB);
+            onManualDateChange("b", date);
+          }}
         />
       )}
     </div>

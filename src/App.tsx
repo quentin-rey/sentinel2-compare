@@ -463,7 +463,11 @@ export default function App() {
     <>
       <div id="map" ref={baseMap.containerRef} className={compareMaps.isOpen ? "hidden" : ""} />
 
-      <CompareView compare={compareMaps} mode={mode} />
+      <CompareView
+        compare={compareMaps}
+        mode={mode}
+        onManualDateChange={(side, date) => (side === "a" ? setDate1(date) : setDate2(date))}
+      />
 
       <ToastContainer toasts={toasts} />
 
