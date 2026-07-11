@@ -21,19 +21,31 @@ export function registerScene(key: string, assets: SceneAssets): void {
   sceneRegistry.set(key, assets);
 }
 
-export function cogTileUrl(sceneKey: string, mode: RenderMode): string {
-  return `s2cog://${sceneKey}/${mode}/{z}/{x}/{y}`;
+// "a"/"b" identify which compare side a tile belongs to, not the scene —
+// see the lane-pool comment below for why this is threaded all the way
+// through the URL.
+export type TileLane = "a" | "b";
+
+export function cogTileUrl(sceneKey: string, mode: RenderMode, lane: TileLane): string {
+  return `s2cog://${sceneKey}/${mode}/${lane}/{z}/{x}/{y}`;
 }
 
-const POOL_SIZE = Math.min(4, Math.max(2, (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 2));
-let workers: Worker[] = [];
-let nextWorker = 0;
+// One dedicated Worker pool per compare side. A single shared pool would let
+// side B's tiles queue up behind side A's — since each tile render already
+// costs real wall-clock time (COG reads), that made the second image in a
+// comparison look stalled even though it started loading at the same time
+// as the first. Splitting by lane guarantees the two sides never compete
+// for the same workers; single-image mode just leaves lane B idle.
+const LANE_POOL_SIZE = Math.min(4, Math.max(2, Math.floor(((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 4) / 2)));
+const lanePools: Record<TileLane, Worker[]> = { a: [], b: [] };
+const nextWorker: Record<TileLane, number> = { a: 0, b: 0 };
 let nextRequestId = 0;
 const pending = new Map<number, { resolve: (buf: ArrayBuffer) => void; reject: (err: Error) => void }>();
 
-function ensureWorkers(): Worker[] {
-  if (workers.length > 0) return workers;
-  workers = Array.from({ length: POOL_SIZE }, () => {
+function ensureLanePool(lane: TileLane): Worker[] {
+  const pool = lanePools[lane];
+  if (pool.length > 0) return pool;
+  const created = Array.from({ length: LANE_POOL_SIZE }, () => {
     const worker = new Worker(new URL("../workers/cogTile.worker.ts", import.meta.url), { type: "module" });
     worker.onmessage = (e: MessageEvent<CogTileResponse>) => {
       const entry = pending.get(e.data.id);
@@ -44,14 +56,15 @@ function ensureWorkers(): Worker[] {
     };
     return worker;
   });
-  return workers;
+  lanePools[lane] = created;
+  return created;
 }
 
-function parseS2CogUrl(url: string): { sceneKey: string; mode: RenderMode; z: number; x: number; y: number } | null {
-  const match = /^s2cog:\/\/([^/]+)\/([^/]+)\/(\d+)\/(\d+)\/(\d+)$/.exec(url);
+function parseS2CogUrl(url: string): { sceneKey: string; mode: RenderMode; lane: TileLane; z: number; x: number; y: number } | null {
+  const match = /^s2cog:\/\/([^/]+)\/([^/]+)\/([ab])\/(\d+)\/(\d+)\/(\d+)$/.exec(url);
   if (!match) return null;
-  const [, sceneKey, mode, z, x, y] = match;
-  return { sceneKey, mode: mode as RenderMode, z: Number(z), x: Number(x), y: Number(y) };
+  const [, sceneKey, mode, lane, z, x, y] = match;
+  return { sceneKey, mode: mode as RenderMode, lane: lane as TileLane, z: Number(z), x: Number(x), y: Number(y) };
 }
 
 let registered = false;
@@ -73,9 +86,9 @@ export function registerCogProtocol(): void {
       }
 
       const id = nextRequestId++;
-      const pool = ensureWorkers();
-      const worker = pool[nextWorker % pool.length];
-      nextWorker++;
+      const pool = ensureLanePool(parsed.lane);
+      const worker = pool[nextWorker[parsed.lane] % pool.length];
+      nextWorker[parsed.lane]++;
 
       const onAbort = () => {
         pending.delete(id);

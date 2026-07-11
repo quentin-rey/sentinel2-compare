@@ -510,6 +510,7 @@ export default function App() {
             windowDays={windowDays}
             onWindowDaysChange={setWindowDays}
             stage={currentStage()}
+            busy={compareMaps.isResolving}
             onDisplay={() => void handleDisplay()}
             onCompare={() => void handleCompare()}
             onClose={handleCloseToSingle}

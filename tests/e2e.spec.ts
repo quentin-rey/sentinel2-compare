@@ -180,6 +180,11 @@ test("place search finds and selects a location", async ({ page }) => {
 });
 
 test("a running comparison survives a refresh, and 'Fermer' steps back to single (not all the way to browsing)", async ({ page }) => {
+  // Longer than the default: after reload every in-memory COG/tiff cache is
+  // gone, so both sides render fully cold — and "Fermer" is intentionally
+  // disabled (App.tsx's compareBusyRef) until that finishes, since it tears
+  // down the same map instances the still-running compare is using.
+  test.setTimeout(60000);
   await page.goto("/");
   await runFullCompare(page, "2026-06-01", "2026-07-08");
   await expect(page).toHaveURL(/cmp=2/);
@@ -194,8 +199,9 @@ test("a running comparison survives a refresh, and 'Fermer' steps back to single
 
   // "Fermer" only exists in split stage, and steps back to the single-image
   // view (still showing date1) rather than resetting all the way to plain
-  // browsing — there's no button for that anymore, only Escape.
-  await page.click("#close-btn");
+  // browsing — there's no button for that anymore, only Escape. It stays
+  // disabled until both sides' post-reload cold render actually finishes.
+  await page.click("#close-btn", { timeout: 40000 });
   await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
   await expect(page).toHaveURL(/cmp=1/);
   await expect(page).not.toHaveURL(/cmp=2/);

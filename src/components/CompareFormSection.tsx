@@ -19,6 +19,12 @@ interface Props {
   windowDays: string;
   onWindowDaysChange: (value: string) => void;
   stage: CompareStage;
+  // True from the moment Afficher/Comparer is clicked until the image(s)
+  // are actually done rendering (not just metadata-resolved) — disables
+  // the trigger buttons for that whole span. Without this, a click while
+  // busy silently no-ops (App.tsx's compareBusyRef guard), which reads as
+  // "the button doesn't work" rather than "still loading".
+  busy: boolean;
   onDisplay: () => void;
   onCompare: () => void;
   onClose: () => void;
@@ -38,6 +44,7 @@ export function CompareFormSection({
   windowDays,
   onWindowDaysChange,
   stage,
+  busy,
   onDisplay,
   onCompare,
   onClose,
@@ -145,17 +152,17 @@ export function CompareFormSection({
       </details>
 
       {stage === "idle" && (
-        <button id="display-btn" onClick={onDisplay}>
+        <button id="display-btn" onClick={onDisplay} disabled={busy}>
           {t("displayBtn")}
         </button>
       )}
       {showDate2Field && (
-        <button id="compare-btn" onClick={onCompare}>
+        <button id="compare-btn" onClick={onCompare} disabled={busy}>
           {t("compareBtn")}
         </button>
       )}
       {stage === "split" && (
-        <button id="close-btn" onClick={onClose}>
+        <button id="close-btn" onClick={onClose} disabled={busy}>
           {t("closeBtn")}
         </button>
       )}
