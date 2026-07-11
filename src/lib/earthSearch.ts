@@ -64,9 +64,15 @@ interface StacFeature {
 
 // Full items (assets + UTM zone) are cached by id as search results come in
 // — the renderer looks a scene's assets up here once its day is picked,
-// with no extra network round-trip. Capped defensively; a long session
-// browsing many dates shouldn't grow this unboundedly.
-const ITEM_CACHE_LIMIT = 100;
+// with no extra network round-trip in the common case. Generous on purpose:
+// a single dual-date compare search over a location spanning several MGRS
+// tiles can return hundreds of features (one per tile per revisit day) —
+// with a too-small cap, a scene resolved moments ago could get evicted
+// before it's actually used to render (observed: 100 was nowhere near
+// enough, causing a resolved side to silently never render). Not a hard
+// guarantee either way, which is why getSceneAssets() below also falls
+// back to re-fetching a single evicted item directly rather than failing.
+const ITEM_CACHE_LIMIT = 500;
 const itemCache = new Map<string, StacFeature>();
 
 function cacheItem(feature: StacFeature): void {
@@ -80,8 +86,24 @@ function cacheItem(feature: StacFeature): void {
 // Asset keys used by lib/config.ts's RENDER_MODE_BANDS.
 const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "swir16", "swir22"];
 
-export function getSceneAssets(productId: string): SceneAssets | undefined {
-  const item = itemCache.get(productId);
+// Cache miss fallback — fetches this one item directly by id (a single,
+// fast request) rather than failing outright. Makes asset resolution
+// correct regardless of ITEM_CACHE_LIMIT/eviction churn, not just "usually
+// fine at the current cache size".
+async function fetchItemById(id: string): Promise<StacFeature | undefined> {
+  try {
+    const res = await fetch(`https://earth-search.aws.element84.com/v1/collections/sentinel-2-l2a/items/${id}`);
+    if (!res.ok) return undefined;
+    const item: StacFeature = await res.json();
+    cacheItem(item);
+    return item;
+  } catch {
+    return undefined;
+  }
+}
+
+export async function getSceneAssets(productId: string): Promise<SceneAssets | undefined> {
+  const item = itemCache.get(productId) ?? (await fetchItemById(productId));
   const epsg = item?.properties["proj:epsg"];
   if (!item || !epsg) return undefined;
   const assets: Record<string, string> = {};

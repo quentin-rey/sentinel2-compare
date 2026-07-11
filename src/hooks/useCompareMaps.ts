@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
-import { registerScene, cogTileUrl } from "../lib/cogProtocol";
+import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
@@ -171,20 +171,31 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   // rendered tiles keep showing their *old* pixels after setTiles() even
   // though the URL template (and therefore the actual image) changed.
   // Removing and re-adding the source sidesteps that stale-cache behavior.
+  // Returns a promise resolving once the map is actually done rendering
+  // this layer's tiles (MapLibre's "idle" event) — callers that only care
+  // about the per-side spinner can fire-and-forget it, but runCompare/
+  // runSingle await it so the big loading banner stays up for the whole
+  // render, not just until the source is added.
   const setSceneLayer = useCallback(
-    (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productId: string, setLoading: (loading: boolean) => void) => {
-      const assets = getSceneAssets(productId);
+    async (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productId: string, lane: TileLane, setLoading: (loading: boolean) => void): Promise<void> => {
+      const assets = await getSceneAssets(productId);
       if (!assets) return;
       registerScene(productId, assets);
-      const url = cogTileUrl(productId, mode);
+      const url = cogTileUrl(productId, mode, lane);
       if (mapInstance.getSource(key)) {
         mapInstance.removeLayer(layerId);
         mapInstance.removeSource(key);
       }
       setLoading(true);
-      mapInstance.once("idle", () => setLoading(false));
+      const idle = new Promise<void>((resolve) => {
+        mapInstance.once("idle", () => {
+          setLoading(false);
+          resolve();
+        });
+      });
       mapInstance.addSource(key, { type: "raster", tiles: [url], tileSize: 256 });
       mapInstance.addLayer({ id: layerId, type: "raster", source: key });
+      return idle;
     },
     [],
   );
@@ -254,26 +265,34 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
 
       // Unlike the old WMTS renderer, there's no wide-window "instant
       // preview" possible here — client-side rendering needs a specific
-      // resolved scene's COGs before anything can be drawn at all, so the
-      // loading banner covers the whole lookup instead of just a brief gap.
+      // resolved scene's COGs before anything can be drawn at all. The
+      // banner (isResolving) now stays up through STAC lookup *and* actual
+      // tile rendering (awaits setSceneLayer's returned promise below),
+      // instead of dropping the instant the source is added — otherwise it
+      // disappeared right as the slow part (COG decode/reprojection) began,
+      // leaving the map looking stalled with no visible feedback.
       setIsResolving(true);
       const [sceneA, sceneB] = await Promise.all([safeSceneData(bbox, date1, opts), safeSceneData(bbox, date2, opts)]);
       const infoA = sceneA.info as SceneInfoLike;
       const infoB = sceneB.info as SceneInfoLike;
 
-      if (infoA.found) setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
-      if (infoB.found) setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductId, (loading) => setLabelB((s) => ({ ...s, loading })));
-      setIsResolving(false);
-
       const prefixBefore = t("labelBefore");
       const prefixAfter = t("labelAfter");
-      setLabelA({ text: labelFor(prefixBefore, date1, infoA, opts, t, lang), title: sceneTooltip(date1, infoA, opts, t, lang), loading: false });
-      setLabelB({ text: labelFor(prefixAfter, date2, infoB, opts, t, lang), title: sceneTooltip(date2, infoB, opts, t, lang), loading: false });
+      setLabelA((s) => ({ ...s, text: labelFor(prefixBefore, date1, infoA, opts, t, lang), title: sceneTooltip(date1, infoA, opts, t, lang) }));
+      setLabelB((s) => ({ ...s, text: labelFor(prefixAfter, date2, infoB, opts, t, lang), title: sceneTooltip(date2, infoB, opts, t, lang) }));
       setDatesA(sceneA.dates);
       setDatesB(sceneB.dates);
       setRenderStateA({ requestedDate: date1, info: infoA });
       setRenderStateB({ requestedDate: date2, info: infoB });
       setLastOpts(opts);
+
+      const renderPromises: Promise<void>[] = [];
+      if (infoA.found) renderPromises.push(setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading }))));
+      else setLabelA((s) => ({ ...s, loading: false }));
+      if (infoB.found) renderPromises.push(setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductId, "b", (loading) => setLabelB((s) => ({ ...s, loading }))));
+      else setLabelB((s) => ({ ...s, loading: false }));
+      await Promise.all(renderPromises);
+      setIsResolving(false);
 
       const hasWarning = !infoA.found || !infoB.found;
       return {
@@ -336,14 +355,15 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       const sceneA = await safeSceneData(bbox, date, opts);
       const infoA = sceneA.info as SceneInfoLike;
 
-      if (infoA.found) setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
-      setIsResolving(false);
-
       const prefixSingle = t("labelSingle");
-      setLabelA({ text: labelFor(prefixSingle, date, infoA, opts, t, lang), title: sceneTooltip(date, infoA, opts, t, lang), loading: false });
+      setLabelA((s) => ({ ...s, text: labelFor(prefixSingle, date, infoA, opts, t, lang), title: sceneTooltip(date, infoA, opts, t, lang) }));
       setDatesA(sceneA.dates);
       setRenderStateA({ requestedDate: date, info: infoA });
       setLastOpts(opts);
+
+      if (infoA.found) await setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
+      else setLabelA((s) => ({ ...s, loading: false }));
+      setIsResolving(false);
 
       const hasWarning = !infoA.found;
       return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning };
@@ -375,9 +395,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     (mode: RenderMode) => {
       const inst = instancesRef.current;
       if (!inst.mapA || !renderStateA?.info.found) return;
-      setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductId, (loading) => setLabelA((s) => ({ ...s, loading })));
+      setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
       if (inst.mapB && renderStateB?.info.found) {
-        setSceneLayer(inst.mapB, "layer-b", "src-b", mode, renderStateB.info.bestProductId, (loading) => setLabelB((s) => ({ ...s, loading })));
+        setSceneLayer(inst.mapB, "layer-b", "src-b", mode, renderStateB.info.bestProductId, "b", (loading) => setLabelB((s) => ({ ...s, loading })));
       }
     },
     [renderStateA, renderStateB, setSceneLayer],
@@ -397,7 +417,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       const chosen = dates.find((d) => d.date === dateStr);
       if (!mapInstance || !dateStr || !chosen) return;
 
-      setSceneLayer(mapInstance, layerId, key, mode, chosen.productId, (loading) => setLabel((s) => ({ ...s, loading })));
+      setSceneLayer(mapInstance, layerId, key, mode, chosen.productId, side, (loading) => setLabel((s) => ({ ...s, loading })));
 
       const cloudCover = chosen.cloudCover ?? 0;
       const updatedInfo: SceneInfoLike = {
