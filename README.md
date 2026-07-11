@@ -59,16 +59,18 @@ per-pixel to the decoded COG bands:
 | True Color | B04/B03/B02 | Natural colors |
 | False Color | B08/B04/B03 | Vegetation in red |
 | Highlight Optimized Natural Color | B04/B03/B02 | Contrast/gamma/saturation enhanced, highlights preserved |
-| Wildfire | B02/B03/B04/B11/B12 | SWIR hotspot detection highlighting fires/burn scars |
+| Wildfire | B02/B03/B04/B11/B12/SCL | SWIR hotspot detection highlighting fires/burn scars |
 
 These are ports of evalscripts originally written for Sentinel Hub's server
 -side renderer, kept as reference/attribution in
 [`docs/evalscripts/`](docs/evalscripts/) — including
 [`wildfire.js`](docs/evalscripts/wildfire.js) (QuickFire v1.0.0 by
 [Pierre Markuse](https://twitter.com/Pierre_Markuse), CC BY 4.0). The
-wildfire port drops that script's cloud-avoidance refinement, since it
-relies on a cloud-probability band (`CLP`) that isn't a standard Earth
-Search/AWS asset — the core SWIR hotspot detection is unaffected.
+wildfire port's cloud-avoidance term originally used a cloud-probability
+band (`CLP`) that isn't a standard Earth Search/AWS asset — approximated
+here instead with the Scene Classification Layer (`SCL`, a standard Earth
+Search asset), whose cloud/cirrus classes suppress the SWIR hotspot
+highlight the same way the original's `CLP` threshold did.
 
 ## Running locally
 
@@ -114,9 +116,13 @@ served at the root of a user/organization site.
 - Place search (geocoding)
 - Displays the actual date and cloud cover of the found scene
 - Clear detection and message if no image is available for the chosen criteria
-- Share via URL (place + dates + mode + settings)
+- Share via URL (place + dates + mode + settings), kept in sync with a
+  manually picked date from a label's dropdown, not just the sidebar's dates
 - PNG/JPEG/GIF/WebM export with settings (size, quality, duration/smoothness
-  for animations, filename), dated info bubbles burned into the export
+  for animations, filename), dated info bubbles burned into the export.
+  PNG/JPEG can optionally render fresh from the satellite data at a
+  resolution decoupled from the screen (`lib/exportHighRes.ts`) instead of
+  capturing the on-screen canvas — see the note in Known limitations.
 - Light/dark/auto theme, collapsible panel, keyboard shortcuts, FR/EN
   language toggle
 
@@ -131,13 +137,20 @@ served at the root of a user/organization site.
 - **First-load rendering time**: the first tiles for a newly-picked scene
   involve live COG range-reads and reprojection math in a Worker — slower
   than a pre-rendered PNG tile service, especially the first pan into a new
-  area. Already-opened bands/read windows are cached for the rest of the
-  session.
-- **Wildfire mode**: the cloud-avoidance refinement from the original
-  QuickFire script is not reproduced (see above) — an approximation, not a
-  loss of the core hotspot detection.
+  area. Mitigated but not eliminated: each compare side gets its own Worker
+  pool lane (so the second image never queues behind the first's tiles),
+  already-opened bands/read windows are cached for the rest of the session,
+  and the loading indicator now honestly tracks real render completion
+  instead of disappearing early. No fix planned beyond that for now —
+  progressive (coarse-then-refined) rendering would help further but is a
+  bigger change.
 - **Nominatim**: rate-limited (~1 req/s), no key — fine for personal use
   but not for significant traffic.
-- **Image export**: captures exactly what's shown on screen (at the
-  resolution chosen in the export modal), not an independent
-  high-resolution satellite image decoupled from the map's own rendering.
+- **High-resolution export**: PNG/JPEG can render directly from the
+  satellite data at a fixed 3840px-wide target instead of capturing the
+  on-screen canvas, but only for a north-up, unpitched view (it samples an
+  axis-aligned grid, which can't reproduce a rotated/tilted camera the way
+  reading back the actual WebGL framebuffer can — falls back to the normal
+  capture export automatically if the view is rotated/tilted, or if the
+  exact scene can't be resolved). Not available for animated GIF/WebM
+  export, which stay on the screen-capture path.

@@ -83,6 +83,7 @@ export interface Translations {
   sizeHd: (p: { px: number }) => string;
   sizeCompact: (p: { px: number }) => string;
   sizeStandard: (p: { px: number }) => string;
+  sizeHighRes: (p: { px: number }) => string;
   qualityLabel: (p: { percent: number }) => string;
   durationLabel: (p: { seconds: number }) => string;
   fpsLabel: (p: { fps: number }) => string;
@@ -133,6 +134,9 @@ export interface Translations {
   animLabelGif: string;
   animLabelWebm: string;
   generating: (p: { label: string; percent: number }) => string;
+  generatingHighRes: string;
+  highResRotatedFallback: string;
+  highResUnresolvedFallback: string;
   shareCopied: string;
 }
 
@@ -201,10 +205,11 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     exportOptionsTitle: "Options d'export",
     sizeLabel: "Taille",
-    sizeOriginal: "Originale (haute résolution)",
+    sizeOriginal: "Originale (résolution de l'écran)",
     sizeHd: ({ px }) => `HD (${px} px)`,
     sizeCompact: ({ px }) => `Compacte (${px} px)`,
     sizeStandard: ({ px }) => `Standard (${px} px)`,
+    sizeHighRes: ({ px }) => `Haute résolution (${px} px, données satellite directes)`,
     qualityLabel: ({ percent }) => `Qualité (${percent}%)`,
     durationLabel: ({ seconds }) => `Durée du cycle avant ↔ après (${seconds}s)`,
     fpsLabel: ({ fps }) => `Fluidité (${fps} im/s)`,
@@ -254,6 +259,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     animLabelGif: "GIF",
     animLabelWebm: "vidéo WebM",
     generating: ({ label, percent }) => `Génération du ${label}… ${percent}%`,
+    generatingHighRes: "Rendu haute résolution en cours… cela peut prendre un moment.",
+    highResRotatedFallback: "Export haute résolution indisponible en vue pivotée/inclinée — export standard utilisé.",
+    highResUnresolvedFallback: "Scène introuvable pour l'export haute résolution — export standard utilisé.",
     shareCopied: "Lien de partage copié dans le presse-papiers.",
   },
   en: {
@@ -320,10 +328,11 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     exportOptionsTitle: "Export options",
     sizeLabel: "Size",
-    sizeOriginal: "Original (high resolution)",
+    sizeOriginal: "Original (screen resolution)",
     sizeHd: ({ px }) => `HD (${px} px)`,
     sizeCompact: ({ px }) => `Compact (${px} px)`,
     sizeStandard: ({ px }) => `Standard (${px} px)`,
+    sizeHighRes: ({ px }) => `High resolution (${px} px, direct from satellite data)`,
     qualityLabel: ({ percent }) => `Quality (${percent}%)`,
     durationLabel: ({ seconds }) => `Before ↔ after cycle duration (${seconds}s)`,
     fpsLabel: ({ fps }) => `Smoothness (${fps} fps)`,
@@ -373,6 +382,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     animLabelGif: "GIF",
     animLabelWebm: "WebM video",
     generating: ({ label, percent }) => `Generating ${label}… ${percent}%`,
+    generatingHighRes: "Rendering at high resolution… this can take a moment.",
+    highResRotatedFallback: "High-resolution export isn't available on a rotated/tilted view — used the standard export instead.",
+    highResUnresolvedFallback: "Couldn't resolve the scene for a high-resolution export — used the standard export instead.",
     shareCopied: "Share link copied to clipboard.",
   },
 };

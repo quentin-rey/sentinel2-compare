@@ -178,22 +178,33 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
   return cached;
 }
 
-export async function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<Uint8ClampedArray> {
+// Core renderer: samples `scene`'s bands over an arbitrary Web Mercator
+// bbox (meters, same convention as tileBoundsMeters) at an arbitrary output
+// resolution. renderTileRGBA (the MapLibre protocol's per-XYZ-tile path)
+// and the high-resolution direct export path both delegate here — a tile
+// is just the special case of a 256x256 bbox aligned to the XYZ grid.
+export async function renderRegionRGBA(
+  scene: SceneAssets,
+  mode: RenderMode,
+  bboxMerc: [minX: number, minY: number, maxX: number, maxY: number],
+  outputWidth: number,
+  outputHeight: number,
+): Promise<Uint8ClampedArray> {
   const bandKeys = RENDER_MODE_BANDS[mode];
   const utmDef = utmDefFor(scene.epsg);
-  const merc = tileBoundsMeters(z, x, y);
+  const [minX, minY, maxX, maxY] = bboxMerc;
 
   const corners: [number, number][] = [
-    [merc.minX, merc.minY],
-    [merc.maxX, merc.minY],
-    [merc.minX, merc.maxY],
-    [merc.maxX, merc.maxY],
+    [minX, minY],
+    [maxX, minY],
+    [minX, maxY],
+    [maxX, maxY],
   ].map((c) => proj4(WEB_MERCATOR, utmDef, c) as [number, number]);
   const xs = corners.map((c) => c[0]);
   const ys = corners.map((c) => c[1]);
   const pad = (Math.max(...xs) - Math.min(...xs)) * 0.05;
   const utmBbox: [number, number, number, number] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
-  const targetGsd = (merc.maxX - merc.minX) / TILE_SIZE;
+  const targetGsd = (maxX - minX) / outputWidth;
 
   // Most tiles in a typical (zoomed-out) viewport fall entirely outside the
   // ~110km scene footprint — skip reading every band entirely for those
@@ -202,7 +213,7 @@ export async function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: nu
   if (firstHref) {
     const sceneBbox = await getSceneBbox(firstHref);
     if (!hasMeaningfulOverlap(utmBbox, sceneBbox, targetGsd)) {
-      return new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4);
+      return new Uint8ClampedArray(outputWidth * outputHeight * 4);
     }
   }
 
@@ -215,14 +226,14 @@ export async function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: nu
   );
   const windows: Record<string, BandWindow> = Object.fromEntries(entries);
 
-  const out = new Uint8ClampedArray(TILE_SIZE * TILE_SIZE * 4);
+  const out = new Uint8ClampedArray(outputWidth * outputHeight * 4);
   const bandsRaw: Record<string, number> = {};
-  for (let py = 0; py < TILE_SIZE; py++) {
-    const my = merc.maxY - ((py + 0.5) / TILE_SIZE) * (merc.maxY - merc.minY);
-    for (let px = 0; px < TILE_SIZE; px++) {
-      const mx = merc.minX + ((px + 0.5) / TILE_SIZE) * (merc.maxX - merc.minX);
+  for (let py = 0; py < outputHeight; py++) {
+    const my = maxY - ((py + 0.5) / outputHeight) * (maxY - minY);
+    for (let px = 0; px < outputWidth; px++) {
+      const mx = minX + ((px + 0.5) / outputWidth) * (maxX - minX);
       const [ux, uy] = proj4(WEB_MERCATOR, utmDef, [mx, my]) as [number, number];
-      const idx = (py * TILE_SIZE + px) * 4;
+      const idx = (py * outputWidth + px) * 4;
 
       let nodata = false;
       for (const key of bandKeys) {
@@ -239,7 +250,10 @@ export async function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: nu
           nodata = true;
           break;
         }
-        bandsRaw[key] = dn / 10000;
+        // SCL (Scene Classification Layer) is a discrete class code
+        // (0-11), not a reflectance DN — every other band scales by
+        // /10000 to get calibrated reflectance, SCL passes through as-is.
+        bandsRaw[key] = key === "scl" ? dn : dn / 10000;
       }
       if (nodata) {
         out[idx + 3] = 0;
@@ -255,13 +269,38 @@ export async function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: nu
   return out;
 }
 
-export async function renderTilePng(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<ArrayBuffer> {
-  const rgba = await renderTileRGBA(scene, mode, z, x, y);
-  const imageData = new ImageData(rgba as Uint8ClampedArray<ArrayBuffer>, TILE_SIZE, TILE_SIZE);
-  const canvas = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
+export function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<Uint8ClampedArray> {
+  const merc = tileBoundsMeters(z, x, y);
+  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], TILE_SIZE, TILE_SIZE);
+}
+
+async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number): Promise<ArrayBuffer> {
+  const imageData = new ImageData(rgba as Uint8ClampedArray<ArrayBuffer>, width, height);
+  const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("OffscreenCanvas 2D non disponible");
   ctx.putImageData(imageData, 0, 0);
   const blob = await canvas.convertToBlob({ type: "image/png" });
   return blob.arrayBuffer();
+}
+
+export async function renderTilePng(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<ArrayBuffer> {
+  const rgba = await renderTileRGBA(scene, mode, z, x, y);
+  return rgbaToPng(rgba, TILE_SIZE, TILE_SIZE);
+}
+
+// Used by the high-resolution export path: same renderer, but for an
+// arbitrary bbox/output size instead of a fixed 256x256 XYZ tile — lets an
+// export sample the COGs directly at a resolution decoupled from whatever
+// the on-screen WebGL canvas happens to be, unlike the old screen-capture
+// export path (see lib/exportHighRes.ts).
+export async function renderRegionPng(
+  scene: SceneAssets,
+  mode: RenderMode,
+  bboxMerc: [minX: number, minY: number, maxX: number, maxY: number],
+  outputWidth: number,
+  outputHeight: number,
+): Promise<ArrayBuffer> {
+  const rgba = await renderRegionRGBA(scene, mode, bboxMerc, outputWidth, outputHeight);
+  return rgbaToPng(rgba, outputWidth, outputHeight);
 }

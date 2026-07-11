@@ -7,7 +7,11 @@ export const RENDER_MODE_BANDS: Record<RenderMode, string[]> = {
   "true-color": ["red", "green", "blue"],
   "false-color": ["nir", "red", "green"],
   honc: ["red", "green", "blue"],
-  fire: ["blue", "green", "red", "swir16", "swir22"],
+  // "scl" (Scene Classification Layer) is a standard Earth Search asset —
+  // used to approximate the cloud-avoidance term the wildfire evalscript
+  // originally got from a CLP (cloud probability) band, which AWS doesn't
+  // provide.
+  fire: ["blue", "green", "red", "swir16", "swir22", "scl"],
 };
 
 export const DEFAULT_MAX_CLOUD = 30;
