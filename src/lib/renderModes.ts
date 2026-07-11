@@ -66,10 +66,14 @@ function honc(r: number, g: number, b: number): [number, number, number] {
 
 // wildfire.js (QuickFire v1.0.0 by Pierre Markuse, CC BY 4.0,
 // https://twitter.com/Pierre_Markuse) — ported with its default toggles
-// (waterHighlight, showBurnscars both off in the source) and the CLP-based
-// cloud-avoidance term dropped, since CLP (cloud probability) isn't a
-// standard AWS/Earth Search asset — see docs/evalscripts/wildfire.js for the
-// original and the plan's known-limitations note.
+// (waterHighlight, showBurnscars both off in the source). The original's
+// cloud-avoidance term used a CLP (cloud probability) band that isn't a
+// standard AWS/Earth Search asset; approximated here instead with the SCL
+// (Scene Classification Layer) band, which is standard — SCL classes 8/9/10
+// (cloud medium/high probability, thin cirrus) suppress the SWIR hotspot
+// boost the same way the original's CLP threshold did, avoiding
+// false-positive "hotspots" on bright clouds. See docs/evalscripts/
+// wildfire.js for the original.
 function fireStretch(val: number, min: number, max: number): number {
   return (val - min) / (max - min);
 }
@@ -98,7 +102,12 @@ function sqrtClamped(v: number): number {
   return Math.sqrt(v < 0 ? 0 : v);
 }
 
-function fire(b02: number, b03: number, b04: number, b11: number, b12: number): [number, number, number] {
+// SCL (Scene Classification Layer) class codes that mean "cloud-like" —
+// medium/high probability cloud and thin cirrus. Standing in for the
+// original evalscript's `CLP < cloudAvoidanceThreshold` check.
+const SCL_CLOUD_CLASSES = new Set([8, 9, 10]);
+
+function fire(b02: number, b03: number, b04: number, b11: number, b12: number, scl: number): [number, number, number] {
   const naturalColorsCC: [number, number, number] = [sqrtClamped(b04), sqrtClamped(b03), sqrtClamped(b02)];
   const naturalColors: [number, number, number] = [2.5 * b04, 2.5 * b03, 2.5 * b02];
   const urban: [number, number, number] = [sqrtClamped(b12 * 1.2), sqrtClamped(b11 * 1.4), sqrtClamped(b04)];
@@ -107,12 +116,14 @@ function fire(b02: number, b03: number, b04: number, b11: number, b12: number): 
   viz = fireSatEnh(viz, 1.1);
   viz = [fireStretch(viz[0], 0.01, 0.99), fireStretch(viz[1], 0.01, 0.99), fireStretch(viz[2], 0.01, 0.99)];
 
-  const hsThreshold = [2.0, 1.5, 1.25, 1.0];
-  const swirSum = b12 + b11;
-  if (swirSum > hsThreshold[0]) viz = [0.5 * b12 + viz[0], 0.5 * b11 + viz[1], viz[2]];
-  else if (swirSum > hsThreshold[1]) viz = [0.5 * b12 + viz[0], 0.2 * b11 + viz[1], viz[2]];
-  else if (swirSum > hsThreshold[2]) viz = [0.5 * b12 + viz[0], 0.1 * b11 + viz[1], viz[2]];
-  else if (swirSum > hsThreshold[3]) viz = [0.5 * b12 + viz[0], viz[1], viz[2]];
+  if (!SCL_CLOUD_CLASSES.has(scl)) {
+    const hsThreshold = [2.0, 1.5, 1.25, 1.0];
+    const swirSum = b12 + b11;
+    if (swirSum > hsThreshold[0]) viz = [0.5 * b12 + viz[0], 0.5 * b11 + viz[1], viz[2]];
+    else if (swirSum > hsThreshold[1]) viz = [0.5 * b12 + viz[0], 0.2 * b11 + viz[1], viz[2]];
+    else if (swirSum > hsThreshold[2]) viz = [0.5 * b12 + viz[0], 0.1 * b11 + viz[1], viz[2]];
+    else if (swirSum > hsThreshold[3]) viz = [0.5 * b12 + viz[0], viz[1], viz[2]];
+  }
 
   // NDVI/NDWI/NBR-based burn-scar/water highlighting are left out here since
   // both toggles (waterHighlight, showBurnscars) default to off upstream.
@@ -128,6 +139,6 @@ export function renderPixel(mode: RenderMode, bands: Record<string, number>): [n
     case "honc":
       return honc(bands.red, bands.green, bands.blue);
     case "fire":
-      return fire(bands.blue, bands.green, bands.red, bands.swir16, bands.swir22);
+      return fire(bands.blue, bands.green, bands.red, bands.swir16, bands.swir22, bands.scl);
   }
 }

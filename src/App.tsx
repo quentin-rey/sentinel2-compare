@@ -8,8 +8,11 @@ import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { useTranslation } from "./hooks/useLanguage";
 import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
 import type { ScenePriority, Bbox } from "./lib/earthSearch";
+import { getSceneAssets } from "./lib/earthSearch";
 import type { PlaceResult } from "./lib/geocode";
 import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
+import { exportHighResCompareImage } from "./lib/exportHighRes";
+import type { SceneAssets } from "./lib/cogRaster";
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
@@ -322,22 +325,75 @@ export default function App() {
     if (!inst.mapA || !inst.mapB || !inst.swipe) return;
 
     if (kind === "png" || kind === "jpeg") {
+      // High-res sampling assumes a north-up, unpitched camera (it renders
+      // an axis-aligned grid straight from the COGs, unlike the normal path
+      // which just reads back whatever the WebGL canvas already shows) —
+      // fall back to the ordinary capture instead of producing a mismatched
+      // image if the view is rotated or tilted.
+      const rotatedOrPitched = inst.mapA.getBearing() !== 0 || inst.mapA.getPitch() !== 0;
+      let highRes = Boolean(options.highRes) && !rotatedOrPitched;
+      if (options.highRes && rotatedOrPitched) {
+        showToast(t("highResRotatedFallback"));
+      }
+
+      let sceneA: SceneAssets | undefined;
+      let sceneB: SceneAssets | undefined;
+      if (highRes) {
+        const infoA = compareMaps.renderStateA?.info;
+        const infoB = compareMaps.renderStateB?.info;
+        const [assetsA, assetsB] = await Promise.all([
+          exportTarget !== "after" && infoA?.found ? getSceneAssets(infoA.bestProductId) : Promise.resolve(undefined),
+          exportTarget !== "before" && infoB?.found ? getSceneAssets(infoB.bestProductId) : Promise.resolve(undefined),
+        ]);
+        sceneA = assetsA;
+        sceneB = assetsB;
+        const missing = (exportTarget !== "after" && !sceneA) || (exportTarget !== "before" && !sceneB);
+        if (missing) {
+          highRes = false;
+          showToast(t("highResUnresolvedFallback"));
+        }
+      }
+
       try {
-        await exportCompareImage({
-          mapA: inst.mapA,
-          mapB: inst.mapB,
-          sliderFraction: inst.swipe.getPosition(),
-          format: kind,
-          target: exportTarget,
-          filename: options.filename,
-          maxWidth: options.maxWidth,
-          quality: options.quality,
-          labels: buildExportLabels(exportTarget),
-        });
+        if (highRes) {
+          setAnimatedBusy(true);
+          setProgressText(t("generatingHighRes"));
+          await exportHighResCompareImage({
+            mapA: inst.mapA,
+            mapB: inst.mapB,
+            sceneA,
+            sceneB,
+            mode,
+            sliderFraction: inst.swipe.getPosition(),
+            format: kind,
+            target: exportTarget,
+            filename: options.filename,
+            outputWidth: options.maxWidth ?? 3840,
+            quality: options.quality,
+            labels: buildExportLabels(exportTarget),
+          });
+        } else {
+          await exportCompareImage({
+            mapA: inst.mapA,
+            mapB: inst.mapB,
+            sliderFraction: inst.swipe.getPosition(),
+            format: kind,
+            target: exportTarget,
+            filename: options.filename,
+            maxWidth: options.maxWidth,
+            quality: options.quality,
+            labels: buildExportLabels(exportTarget),
+          });
+        }
         showToast(t("exportSuccess", { kind: kind.toUpperCase() }));
       } catch (err) {
         console.error(err);
         setStatus(t("exportError", { kind: kind.toUpperCase(), err: err instanceof Error ? err.message : String(err) }), true);
+      } finally {
+        if (highRes) {
+          setAnimatedBusy(false);
+          setProgressText("");
+        }
       }
       return;
     }

@@ -107,7 +107,7 @@ export function registerCogProtocol(): void {
         },
       });
 
-      const request: CogTileRequest = { id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y };
+      const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y };
       worker.postMessage(request);
     });
   });

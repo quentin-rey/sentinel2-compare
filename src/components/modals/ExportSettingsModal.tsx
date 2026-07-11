@@ -3,11 +3,20 @@ import { useTranslation, type TFunction } from "../../hooks/useLanguage";
 
 export type ExportKind = "png" | "jpeg" | "gif" | "webm";
 
+// Sentinel `size` value meaning "render fresh from the satellite data at
+// this resolution" instead of capturing the on-screen canvas — see
+// lib/exportHighRes.ts. Only offered for static PNG/JPEG exports: it
+// samples the COGs directly, decoupled from whatever the on-screen WebGL
+// canvas' pixel size happens to be.
+export const HIGH_RES_SIZE = -1;
+export const HIGH_RES_WIDTH = 3840;
+
 function imageSizes(t: TFunction) {
   return [
     { label: t("sizeOriginal"), value: 0 },
     { label: t("sizeHd", { px: 1920 }), value: 1920 },
     { label: t("sizeCompact", { px: 960 }), value: 960 },
+    { label: t("sizeHighRes", { px: HIGH_RES_WIDTH }), value: HIGH_RES_SIZE },
   ];
 }
 function animSizes(t: TFunction) {
@@ -24,6 +33,9 @@ export interface ExportConfirmOptions {
   filename: string;
   durationMs?: number;
   fps?: number;
+  // Render fresh from the satellite data at maxWidth instead of capturing
+  // the on-screen canvas — see lib/exportHighRes.ts.
+  highRes?: boolean;
 }
 
 interface Props {
@@ -69,7 +81,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
 
   useEffect(() => {
     if (!kind || filenameEdited) return;
-    setFilename(computeFilename(kind, size, quality, duration, fps));
+    setFilename(computeFilename(kind, size === HIGH_RES_SIZE ? HIGH_RES_WIDTH : size, quality, duration, fps));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, size, quality, duration, fps, filenameEdited]);
 
@@ -162,13 +174,16 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
         <button
           id="export-modal-confirm"
           onClick={() => {
-            const finalFilename = filename.trim() || computeFilename(kind, size, quality, duration, fps);
+            const highRes = size === HIGH_RES_SIZE;
+            const effectiveWidth = highRes ? HIGH_RES_WIDTH : size;
+            const finalFilename = filename.trim() || computeFilename(kind, effectiveWidth, quality, duration, fps);
             onConfirm(kind, {
-              maxWidth: size || undefined,
+              maxWidth: effectiveWidth || undefined,
               quality: quality / 100,
               filename: finalFilename,
               durationMs: animated ? duration * 1000 : undefined,
               fps: animated ? fps : undefined,
+              highRes,
             });
           }}
         >

@@ -67,19 +67,20 @@ function copyToCanvas2d(sourceCanvas: HTMLCanvasElement, maxWidth?: number): HTM
 }
 
 /**
- * Composites mapA (left of the split) and mapB (right of the split) into a
- * single canvas, matching the swipe view exactly. `targetWidth`, if smaller
- * than the source canvas, downscales the output (used for GIF/video frames,
+ * Composites canvasA (left of the split) and canvasB (right of the split)
+ * into a single canvas, matching the swipe view. `targetWidth`, if smaller
+ * than canvasA's width, downscales the output (used for GIF/video frames,
  * where full resolution would be slow to encode and needlessly large).
+ * Takes plain canvases rather than MapLibreMaps so it's equally usable for
+ * the high-resolution direct-COG export path (lib/exportHighRes.ts), whose
+ * canvases never touched a MapLibreMap at all.
  */
-export function compositeCanvas(
-  mapA: MapLibreMap,
-  mapB: MapLibreMap,
+export function compositeCanvasesAt(
+  canvasA: HTMLCanvasElement,
+  canvasB: HTMLCanvasElement,
   sliderFraction: number,
   targetWidth?: number,
 ): HTMLCanvasElement {
-  const canvasA = mapA.getCanvas();
-  const canvasB = mapB.getCanvas();
   const srcWidth = canvasA.width;
   const srcHeight = canvasA.height;
   const scale = targetWidth && targetWidth < srcWidth ? targetWidth / srcWidth : 1;
@@ -106,6 +107,10 @@ export function compositeCanvas(
     ctx.restore();
   }
   return out;
+}
+
+export function compositeCanvas(mapA: MapLibreMap, mapB: MapLibreMap, sliderFraction: number, targetWidth?: number): HTMLCanvasElement {
+  return compositeCanvasesAt(mapA.getCanvas(), mapB.getCanvas(), sliderFraction, targetWidth);
 }
 
 // Font sizes are derived from canvas *width* (which varies less wildly than
