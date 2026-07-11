@@ -151,7 +151,11 @@ export function CompareFormSection({
         </div>
       </details>
 
-      {stage === "idle" && (
+      {/* Also shown in "single" (not just "idle") so editing date1 after the
+          first display has a way to apply it — previously the button
+          vanished once an image was showing, and editing date1 with the
+          date2 field still collapsed had no way to take effect. */}
+      {(stage === "idle" || (stage === "single" && !wantsCompare)) && (
         <button id="display-btn" onClick={onDisplay} disabled={busy}>
           {t("displayBtn")}
         </button>
