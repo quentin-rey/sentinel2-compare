@@ -94,6 +94,9 @@ export default function App() {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [animatedBusy, setAnimatedBusy] = useState(false);
   const [progressText, setProgressText] = useState("");
+  // null = indeterminate (spinner only, e.g. high-res export with no
+  // meaningful sub-progress); 0-100 drives the GIF/WebM progress bar.
+  const [progressPercent, setProgressPercent] = useState<number | null>(null);
 
   const theme = useTheme();
   const menu = useMenuCollapsed();
@@ -358,6 +361,7 @@ export default function App() {
         if (highRes) {
           setAnimatedBusy(true);
           setProgressText(t("generatingHighRes"));
+          setProgressPercent(null);
           await exportHighResCompareImage({
             mapA: inst.mapA,
             mapB: inst.mapB,
@@ -393,6 +397,7 @@ export default function App() {
         if (highRes) {
           setAnimatedBusy(false);
           setProgressText("");
+          setProgressPercent(null);
         }
       }
       return;
@@ -401,9 +406,14 @@ export default function App() {
     setAnimatedBusy(true);
     const label = kind === "gif" ? t("animLabelGif") : t("animLabelWebm");
     setProgressText(t("generating", { label, percent: 0 }));
+    setProgressPercent(0);
     try {
       const labels = buildExportLabels("slide");
-      const onProgress = (p: number) => setProgressText(t("generating", { label, percent: Math.round(p * 100) }));
+      const onProgress = (p: number) => {
+        const percent = Math.round(p * 100);
+        setProgressText(t("generating", { label, percent }));
+        setProgressPercent(percent);
+      };
       const blob =
         kind === "gif"
           ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
@@ -415,6 +425,7 @@ export default function App() {
       setStatus(t("animExportError", { label, err: err instanceof Error ? err.message : String(err) }), true);
     } finally {
       setAnimatedBusy(false);
+      setProgressPercent(null);
     }
   }
 
@@ -585,6 +596,7 @@ export default function App() {
               onOpenExportModal={setPendingExportKind}
               animatedBusy={animatedBusy}
               progressText={progressText}
+              progressPercent={progressPercent}
             />
           </AccordionSection>
         )}
