@@ -27,12 +27,13 @@ import { ShortcutsModal } from "./components/modals/ShortcutsModal";
 import { ExportSettingsModal, type ExportKind, type ExportConfirmOptions } from "./components/modals/ExportSettingsModal";
 import { ExportDiscardConfirmModal } from "./components/modals/ExportDiscardConfirmModal";
 import type { Map as MapLibreMap } from "maplibre-gl";
+import type { TranslationKey } from "./i18n/translations";
 
-const RENDER_MODE_LABELS: Record<RenderMode, string> = {
-  "true-color": "True Color",
-  "false-color": "False Color",
-  honc: "Highlight Optimized Natural Color",
-  fire: "Wildfire",
+const RENDER_MODE_TEXT_KEYS: Record<RenderMode, TranslationKey> = {
+  "true-color": "renderModeTrueColor",
+  "false-color": "renderModeFalseColor",
+  honc: "renderModeHonc",
+  fire: "renderModeFire",
 };
 
 type ActiveModal = "info" | "shortcuts" | null;
@@ -301,7 +302,7 @@ export default function App() {
   }
 
   function buildExportLabels(target: ExportTarget = "slide"): ExportLabels {
-    const modeText = RENDER_MODE_LABELS[mode];
+    const modeText = t(RENDER_MODE_TEXT_KEYS[mode]);
     const showHeader = target === "slide";
     return {
       before: { label: showHeader ? t("labelBefore").toUpperCase() : "", value: dateOnly(stripLabelPrefix(compareMaps.labelA.text)) },

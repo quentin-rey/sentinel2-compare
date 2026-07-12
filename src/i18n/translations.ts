@@ -39,6 +39,10 @@ export interface Translations {
   quickMonth: string;
   quickYear: string;
   renderLabel: string;
+  renderModeTrueColor: string;
+  renderModeFalseColor: string;
+  renderModeHonc: string;
+  renderModeFire: string;
   priorityLabel: string;
   priorityClosest: string;
   priorityLeastCloud: string;
@@ -160,7 +164,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     sectionShare: "Partage",
 
     placeSearchLabel: "Rechercher un lieu",
-    placeSearchPlaceholder: "Ville, adresse, lieu...",
+    placeSearchPlaceholder: "Ville, adresse, lieu…",
 
     date1Label: "Date 1 (avant)",
     date2Label: "Date 2 (après)",
@@ -168,6 +172,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     quickMonth: "−1 mois",
     quickYear: "−1 an",
     renderLabel: "Rendu",
+    renderModeTrueColor: "Couleurs naturelles",
+    renderModeFalseColor: "Fausses couleurs",
+    renderModeHonc: "Highlight Optimized Natural Color",
+    renderModeFire: "Feux de forêt",
     priorityLabel: "Priorité de sélection",
     priorityClosest: "Date la plus proche",
     priorityLeastCloud: "Moins nuageux",
@@ -248,8 +256,8 @@ export const translations: Record<"fr" | "en", Translations> = {
     priorityLabelLeastCloud: "image la moins nuageuse",
     internalError: "Erreur interne : conteneurs de carte introuvables.",
 
-    chooseDate: "Choisis une date.",
-    chooseDates: "Choisis deux dates.",
+    chooseDate: "Choisissez une date.",
+    chooseDates: "Choisissez deux dates.",
     dateOrderError: 'La date "avant" doit être antérieure (ou égale) à la date "après".',
     genericError: "Une erreur est survenue.",
     exportSuccess: ({ kind }) => `Image ${kind} exportée.`,
@@ -283,7 +291,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     sectionShare: "Share",
 
     placeSearchLabel: "Search a place",
-    placeSearchPlaceholder: "City, address, place...",
+    placeSearchPlaceholder: "City, address, place…",
 
     date1Label: "Date 1 (before)",
     date2Label: "Date 2 (after)",
@@ -291,6 +299,10 @@ export const translations: Record<"fr" | "en", Translations> = {
     quickMonth: "−1 mo",
     quickYear: "−1 yr",
     renderLabel: "Render",
+    renderModeTrueColor: "True Color",
+    renderModeFalseColor: "False Color",
+    renderModeHonc: "Highlight Optimized Natural Color",
+    renderModeFire: "Wildfire",
     priorityLabel: "Selection priority",
     priorityClosest: "Closest date",
     priorityLeastCloud: "Least cloudy",

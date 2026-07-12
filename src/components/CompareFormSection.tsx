@@ -112,10 +112,10 @@ export function CompareFormSection({
       <label>
         {t("renderLabel")}
         <select id="mode" value={mode} onChange={(e) => onModeChange(e.target.value as RenderMode)}>
-          <option value="true-color">True Color</option>
-          <option value="false-color">False Color</option>
-          <option value="honc">Highlight Optimized Natural Color</option>
-          <option value="fire">Wildfire</option>
+          <option value="true-color">{t("renderModeTrueColor")}</option>
+          <option value="false-color">{t("renderModeFalseColor")}</option>
+          <option value="honc">{t("renderModeHonc")}</option>
+          <option value="fire">{t("renderModeFire")}</option>
         </select>
       </label>
       <label>
