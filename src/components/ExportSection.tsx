@@ -9,9 +9,11 @@ interface Props {
   onOpenExportModal: (kind: ExportKind) => void;
   animatedBusy: boolean;
   progressText: string;
+  // null = indeterminate (spinner only), 0-100 = show a progress bar too.
+  progressPercent: number | null;
 }
 
-export function ExportSection({ exportTarget, onExportTargetChange, onOpenExportModal, animatedBusy, progressText }: Props) {
+export function ExportSection({ exportTarget, onExportTargetChange, onOpenExportModal, animatedBusy, progressText, progressPercent }: Props) {
   const { t } = useTranslation();
   return (
     <>
@@ -40,9 +42,17 @@ export function ExportSection({ exportTarget, onExportTargetChange, onOpenExport
           {t("exportWebm")}
         </button>
       </div>
-      <p id="export-progress" className={`field-hint${animatedBusy ? "" : " hidden"}`}>
-        {progressText}
-      </p>
+      <div id="export-progress" className={`export-progress${animatedBusy ? "" : " hidden"}`}>
+        <div className="export-progress-row">
+          <span className="export-progress-spinner" aria-hidden="true" />
+          <span className="export-progress-text">{progressText}</span>
+        </div>
+        {progressPercent !== null && (
+          <div className="export-progress-track">
+            <div className="export-progress-fill" style={{ width: `${progressPercent}%` }} />
+          </div>
+        )}
+      </div>
     </>
   );
 }
