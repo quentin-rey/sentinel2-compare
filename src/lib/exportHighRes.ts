@@ -85,7 +85,7 @@ async function renderHighResCanvas(map: MapLibreMap, scene: SceneAssets, mode: R
   return canvas;
 }
 
-export interface ExportHighResOptions {
+interface ExportHighResOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
   // Assets for the scene currently shown on each side — undefined if that

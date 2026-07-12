@@ -13,7 +13,7 @@ export type ExportSide = "before" | "after" | "both";
 export type ExportTarget = "slide" | "before" | "after";
 export type ExportFormat = "png" | "jpeg";
 
-export interface ExportReadout {
+interface ExportReadout {
   label: string;
   value: string;
 }
@@ -227,7 +227,7 @@ export function drawOverlayLabels(
   return canvas;
 }
 
-export interface ExportCompareImageOptions {
+interface ExportCompareImageOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
   sliderFraction: number;

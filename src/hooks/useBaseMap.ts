@@ -14,7 +14,7 @@ const OSM_STYLE = {
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
 
-export interface InitialView {
+interface InitialView {
   center: [number, number];
   zoom: number;
 }

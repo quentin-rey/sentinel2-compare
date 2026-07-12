@@ -1,6 +1,6 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 
-export interface CreateSwipeOptions {
+interface CreateSwipeOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
   wrapEl: HTMLElement;

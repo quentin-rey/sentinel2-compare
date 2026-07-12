@@ -14,7 +14,7 @@ const EARTH_SEARCH_ENDPOINT = "https://earth-search.aws.element84.com/v1/search"
 // Band-asset hrefs + UTM zone for a resolved scene — shape matches
 // lib/cogRaster.ts's SceneAssets (the client-side COG renderer), declared
 // separately here to keep this module's only dependency an HTTP fetch.
-export interface SceneAssets {
+interface SceneAssets {
   epsg: number;
   assets: Record<string, string>;
 }
@@ -23,13 +23,13 @@ export type Bbox = [west: number, south: number, east: number, north: number];
 
 export type ScenePriority = "closest" | "leastcloud";
 
-export interface LoadSceneDataOptions {
+interface LoadSceneDataOptions {
   windowDays?: number;
   maxCloud?: number;
   priority?: ScenePriority;
 }
 
-export interface SceneInfo {
+interface SceneInfo {
   found: boolean;
   count: number;
   tileCount: number;
@@ -46,7 +46,7 @@ export interface SceneDate {
   productId: string;
 }
 
-export interface LoadSceneDataResult {
+interface LoadSceneDataResult {
   info: SceneInfo;
   dates: SceneDate[];
 }
