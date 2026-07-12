@@ -167,9 +167,6 @@ html, body {
   cursor: help;
 }
 
-.label-a { left: 12px; }
-.label-b { right: 12px; }
-
 .date-picker {
   cursor: pointer;
   background: rgba(255,255,255,0.15);
@@ -692,17 +689,6 @@ html, body {
 .modal-footnote {
   color: var(--text-muted);
   font-size: 12px;
-}
-
-.status-line {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-muted);
-  margin: 4px 0 12px;
-}
-
-.status-line-active {
-  color: var(--accent);
 }
 
 .modal label {

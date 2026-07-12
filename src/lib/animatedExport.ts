@@ -90,7 +90,7 @@ function generateFrames(
   return frames;
 }
 
-export interface ExportCompareGifOptions {
+interface ExportCompareGifOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
   durationMs?: number;
@@ -147,7 +147,7 @@ export async function exportCompareGif({
   });
 }
 
-export interface ExportCompareWebmOptions {
+interface ExportCompareWebmOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
   durationMs?: number;

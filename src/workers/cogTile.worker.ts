@@ -26,7 +26,7 @@ export interface CogRegionRequest {
   outputHeight: number;
 }
 
-export type CogRenderRequest = CogTileRequest | CogRegionRequest;
+type CogRenderRequest = CogTileRequest | CogRegionRequest;
 export type CogTileResponse = { id: number; buffer: ArrayBuffer } | { id: number; error: string };
 
 self.onmessage = async (e: MessageEvent<CogRenderRequest>) => {

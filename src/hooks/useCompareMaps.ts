@@ -17,7 +17,7 @@ export interface CompareOpts {
 // Either a resolved lookup result, or the "metadata unavailable" fallback
 // (STAC request itself failed — nothing renders for that side either way,
 // same as "not found", just for a different reason).
-export type SceneInfoLike =
+type SceneInfoLike =
   | { found: true; unknown?: false; bestDate: string; bestCloudCover: number; tileCount: number; count?: number; bestProductId: string }
   | { found: false; unknown?: false; count?: number; tileCount?: number }
   | { found: false; unknown: true };
@@ -83,7 +83,7 @@ async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
  * pieces that actually drive JSX (open/resolving status, label text/
  * spinner, date-picker options) are real state.
  */
-export interface UseCompareMapsOptions {
+interface UseCompareMapsOptions {
   onMoveEnd?: () => void;
 }
 

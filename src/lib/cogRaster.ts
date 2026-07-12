@@ -269,7 +269,7 @@ export async function renderRegionRGBA(
   return out;
 }
 
-export function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<Uint8ClampedArray> {
+function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<Uint8ClampedArray> {
   const merc = tileBoundsMeters(z, x, y);
   return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], TILE_SIZE, TILE_SIZE);
 }

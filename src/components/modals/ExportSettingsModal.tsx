@@ -8,8 +8,8 @@ export type ExportKind = "png" | "jpeg" | "gif" | "webm";
 // lib/exportHighRes.ts. Only offered for static PNG/JPEG exports: it
 // samples the COGs directly, decoupled from whatever the on-screen WebGL
 // canvas' pixel size happens to be.
-export const HIGH_RES_SIZE = -1;
-export const HIGH_RES_WIDTH = 3840;
+const HIGH_RES_SIZE = -1;
+const HIGH_RES_WIDTH = 3840;
 
 function imageSizes(t: TFunction) {
   return [
