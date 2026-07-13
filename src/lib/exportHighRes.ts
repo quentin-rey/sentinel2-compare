@@ -85,6 +85,41 @@ async function renderHighResCanvas(map: MapLibreMap, scene: SceneAssets, mode: R
   return canvas;
 }
 
+interface ExportHighResSingleImageOptions {
+  map: MapLibreMap;
+  scene: SceneAssets;
+  mode: RenderMode;
+  format?: ExportFormat;
+  filename?: string;
+  labels?: ExportLabels;
+  outputWidth: number;
+  quality?: number;
+}
+
+/**
+ * High-res counterpart to exportImage.ts's exportSingleImage, for the
+ * wizard's single-image stage (issue #4) — samples straight from the COGs
+ * like exportHighResCompareImage's "before"/"after" targets, just without
+ * needing a second map/scene at all.
+ */
+export async function exportHighResSingleImage({
+  map,
+  scene,
+  mode,
+  format = "png",
+  filename,
+  labels,
+  outputWidth,
+  quality = 0.92,
+}: ExportHighResSingleImageOptions): Promise<void> {
+  const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+  const ext = format === "jpeg" ? "jpg" : "png";
+  const canvas = await renderHighResCanvas(map, scene, mode, outputWidth);
+  if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
+  const blob = await canvasToBlob(canvas, mime, quality);
+  downloadBlob(blob, filename || `sentinel2-image-hd.${ext}`);
+}
+
 interface ExportHighResOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;

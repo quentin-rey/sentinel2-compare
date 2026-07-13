@@ -10,8 +10,8 @@ import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/c
 import type { ScenePriority, Bbox } from "./lib/earthSearch";
 import { getSceneAssets } from "./lib/earthSearch";
 import type { PlaceResult } from "./lib/geocode";
-import { exportCompareImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
-import { exportHighResCompareImage } from "./lib/exportHighRes";
+import { exportCompareImage, exportSingleImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
+import { exportHighResCompareImage, exportHighResSingleImage } from "./lib/exportHighRes";
 import type { SceneAssets } from "./lib/cogRaster";
 import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
@@ -420,6 +420,14 @@ export default function App() {
     return `sentinel2_${modeSlug}_${d1}_vs_${d2}`;
   }
 
+  // Single-image stage (issue #4) — just the one date, no "_vs_" pairing.
+  function buildSingleExportBasename(): string {
+    const modeSlug = slug(mode);
+    const infoA = compareMaps.renderStateA?.info;
+    const d1 = (infoA?.found ? infoA.bestDate : compareMaps.renderStateA?.requestedDate || date1)?.slice(0, 10) || "image";
+    return `sentinel2_${modeSlug}_${d1}`;
+  }
+
   function buildExportLabels(target: ExportTarget = "slide"): ExportLabels {
     const modeText = t(RENDER_MODE_TEXT_KEYS[mode]);
     const showHeader = target === "slide";
@@ -430,20 +438,96 @@ export default function App() {
     };
   }
 
+  // Single-image stage: only `before` is meaningful (drawOverlayLabels is
+  // called with side "before", which drops its label as redundant — same
+  // as a single-side compare export).
+  function buildSingleExportLabels(): ExportLabels {
+    const modeText = t(RENDER_MODE_TEXT_KEYS[mode]);
+    return {
+      before: { label: "", value: dateOnly(stripLabelPrefix(compareMaps.labelA.text)) },
+      attribution: `Sentinel-2 (Copernicus) · ${modeText}`,
+    };
+  }
+
   function computeExportFilename(kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number): string {
     const ext = kind === "jpeg" ? "jpg" : kind;
     const animated = kind === "gif" || kind === "webm";
     const tags = [maxWidth ? `${maxWidth}px` : "orig"];
     if (kind === "jpeg" || kind === "gif") tags.push(`q${Math.round(quality)}`);
     if (animated) tags.push(`${duration}s`, `${fps}fps`);
-    const base = animated
-      ? `${buildExportBasename()}_animation`
-      : `${buildExportBasename()}_${exportTarget === "before" ? "avant" : exportTarget === "after" ? "apres" : "comparaison"}`;
+    const base = !compareMaps.isComparing
+      ? buildSingleExportBasename()
+      : animated
+        ? `${buildExportBasename()}_animation`
+        : `${buildExportBasename()}_${exportTarget === "before" ? "avant" : exportTarget === "after" ? "apres" : "comparaison"}`;
     return `${base}_${tags.join("_")}.${ext}`;
+  }
+
+  // Single-image stage (issue #4) — no mapB/swipe to composite against, and
+  // the UI only ever offers "png"/"jpeg" here (GIF/WebM need a second image
+  // to animate between), but kind is still checked defensively.
+  async function handleSingleExportConfirm(kind: ExportKind, options: ExportConfirmOptions) {
+    const mapA = compareMaps.instancesRef.current.mapA;
+    if (!mapA || (kind !== "png" && kind !== "jpeg")) return;
+
+    const rotatedOrPitched = mapA.getBearing() !== 0 || mapA.getPitch() !== 0;
+    let highRes = Boolean(options.highRes) && !rotatedOrPitched;
+    if (options.highRes && rotatedOrPitched) showToast(t("highResRotatedFallback"));
+
+    let scene: SceneAssets | undefined;
+    if (highRes) {
+      const infoA = compareMaps.renderStateA?.info;
+      scene = infoA?.found ? await getSceneAssets(infoA.bestProductId) : undefined;
+      if (!scene) {
+        highRes = false;
+        showToast(t("highResUnresolvedFallback"));
+      }
+    }
+
+    try {
+      if (highRes && scene) {
+        setAnimatedBusy(true);
+        setProgressText(t("generatingHighRes"));
+        setProgressPercent(null);
+        await exportHighResSingleImage({
+          map: mapA,
+          scene,
+          mode,
+          format: kind,
+          filename: options.filename,
+          outputWidth: options.maxWidth ?? 3840,
+          quality: options.quality,
+          labels: buildSingleExportLabels(),
+        });
+      } else {
+        await exportSingleImage({
+          map: mapA,
+          format: kind,
+          filename: options.filename,
+          maxWidth: options.maxWidth,
+          quality: options.quality,
+          labels: buildSingleExportLabels(),
+        });
+      }
+      showToast(t("exportSuccess", { kind: kind.toUpperCase() }));
+    } catch (err) {
+      console.error(err);
+      setStatus(t("exportError", { kind: kind.toUpperCase(), err: err instanceof Error ? err.message : String(err) }), true);
+    } finally {
+      if (highRes) {
+        setAnimatedBusy(false);
+        setProgressText("");
+        setProgressPercent(null);
+      }
+    }
   }
 
   async function handleExportConfirm(kind: ExportKind, options: ExportConfirmOptions) {
     setPendingExportKind(null);
+    if (!compareMaps.isComparing) {
+      await handleSingleExportConfirm(kind, options);
+      return;
+    }
     const inst = compareMaps.instancesRef.current;
     if (!inst.mapA || !inst.mapB || !inst.swipe) return;
 
@@ -744,7 +828,7 @@ export default function App() {
           </AccordionSection>
         )}
 
-        {compareMaps.isComparing && (
+        {compareMaps.isOpen && (
           <AccordionSection
             id="export-section"
             title={t("sectionExport")}
@@ -752,6 +836,7 @@ export default function App() {
             onToggle={(open) => setOpenSection(open ? "export" : null)}
           >
             <ExportSection
+              single={!compareMaps.isComparing}
               exportTarget={exportTarget}
               onExportTargetChange={setExportTarget}
               onOpenExportModal={setPendingExportKind}
