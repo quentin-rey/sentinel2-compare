@@ -3,6 +3,10 @@ import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 
 const OSM_STYLE = {
   version: 8 as const,
+  // Needed for the "départements"/"villes" overlay labels (lib/adminLayers.ts)
+  // — MapLibre refuses any symbol layer's text-field without a glyphs URL,
+  // even on a style that's otherwise pure raster tiles.
+  glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf",
   sources: {
     osm: {
       type: "raster" as const,

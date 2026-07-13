@@ -3,6 +3,7 @@ import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
 import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
+import { firstAdminLayerId } from "../lib/adminLayers";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
 import { useTranslation, type TFunction } from "./useLanguage";
@@ -42,6 +43,20 @@ export interface CompareView {
 }
 
 const DEFAULT_LABEL: LabelState = { text: "", title: "", loading: false };
+
+// Needed for the "départements"/"villes" overlay labels (lib/adminLayers.ts)
+// — MapLibre refuses any symbol layer's text-field without a glyphs URL,
+// even on a style that otherwise has no sources/layers of its own yet.
+// A *fresh object every call*, not a shared constant: MapLibre's Style
+// mutates the config object it's given in place (map.addSource/addLayer
+// push straight into style.sources/style.layers), so a single shared object
+// reused across mapA/mapB/multiple runCompare calls would accumulate every
+// previous session's sources and layers — and a later map reusing the same
+// layer id (e.g. "layer-a") would then fail to add it, since the "empty"
+// style handed to its constructor secretly already declared one.
+function emptyStyle() {
+  return { version: 8 as const, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf", sources: {}, layers: [] };
+}
 
 function describeScene(label: string, requestedDate: string, info: SceneInfoLike, t: TFunction, lang: Lang): string {
   const date = formatDate(requestedDate, lang);
@@ -84,7 +99,7 @@ async function safeSceneData(bbox: Bbox, date: string, opts: CompareOpts) {
  * spinner, date-picker options) are real state.
  */
 interface UseCompareMapsOptions {
-  onMoveEnd?: () => void;
+  onMoveEnd?: (map: MapLibreMap) => void;
 }
 
 export function useCompareMaps(options?: UseCompareMapsOptions) {
@@ -111,6 +126,13 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   // isOpen: some image is showing (single OR split). isComparing: split view
   // with both sides — governs whether the slider/mapB/Export exist.
   const [isComparing, setIsComparing] = useState(false);
+  // Bumped every time runCompare/runSingle builds a *fresh* mapA/mapB pair
+  // (e.g. re-running "Comparer" with new dates while already comparing,
+  // where isOpen/isComparing don't themselves change). instancesRef is a
+  // plain ref, so callers that need to re-apply something to "whichever
+  // map instances currently exist" (App.tsx's admin-layers effect) can't
+  // just depend on isOpen/isComparing — they need this to fire too.
+  const [mapGeneration, setMapGeneration] = useState(0);
   const [isResolving, setIsResolving] = useState(false);
   const [labelA, setLabelA] = useState<LabelState>(DEFAULT_LABEL);
   const [labelB, setLabelB] = useState<LabelState>(DEFAULT_LABEL);
@@ -194,7 +216,13 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         });
       });
       mapInstance.addSource(key, { type: "raster", tiles: [url], tileSize: 256 });
-      mapInstance.addLayer({ id: layerId, type: "raster", source: key });
+      // Every reload (initial display, render-mode change, manual date pick)
+      // re-adds this layer from scratch — addLayer() with no beforeId always
+      // appends at the very top, which would bury an already-present
+      // départements/villes overlay (lib/adminLayers.ts) under the new
+      // imagery. Inserting just below the lowest overlay layer (if any)
+      // keeps those overlays on top regardless of load order.
+      mapInstance.addLayer({ id: layerId, type: "raster", source: key }, firstAdminLayerId(mapInstance));
       return idle;
     },
     [],
@@ -223,10 +251,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         setIsOpen(false);
         return { statusMessage: t("internalError"), hasWarning: true };
       }
-      const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
         container: mapAContainerRef.current,
-        style: emptyStyle,
+        style: emptyStyle(),
         center,
         zoom,
         bearing,
@@ -236,7 +263,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       });
       const mapB = new maplibregl.Map({
         container: mapBContainerRef.current,
-        style: emptyStyle,
+        style: emptyStyle(),
         center,
         zoom,
         bearing,
@@ -246,10 +273,10 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       });
       inst.mapA = mapA;
       inst.mapB = mapB;
+      setMapGeneration((g) => g + 1);
 
-      const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
-      mapA.on("moveend", handleMoveEnd);
-      mapB.on("moveend", handleMoveEnd);
+      mapA.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapA));
+      mapB.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapB));
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 
@@ -333,10 +360,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         setIsOpen(false);
         return { statusMessage: t("internalError"), hasWarning: true };
       }
-      const emptyStyle = { version: 8 as const, sources: {}, layers: [] };
       const mapA = new maplibregl.Map({
         container: mapAContainerRef.current,
-        style: emptyStyle,
+        style: emptyStyle(),
         center,
         zoom,
         bearing,
@@ -345,9 +371,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         preserveDrawingBuffer: true,
       });
       inst.mapA = mapA;
+      setMapGeneration((g) => g + 1);
 
-      const handleMoveEnd = () => optionsRef.current?.onMoveEnd?.();
-      mapA.on("moveend", handleMoveEnd);
+      mapA.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapA));
 
       await new Promise<void>((r) => mapA.on("load", () => r()));
 
@@ -451,6 +477,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     instancesRef,
     isOpen,
     isComparing,
+    mapGeneration,
     isResolving,
     labelA,
     labelB,

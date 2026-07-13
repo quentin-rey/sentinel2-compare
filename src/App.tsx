@@ -18,6 +18,23 @@ import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
 import { Navbar } from "./components/Navbar";
 import { PlaceSearchSection } from "./components/PlaceSearchSection";
+import { LayersSection } from "./components/LayersSection";
+import {
+  addDepartementsLayer,
+  removeDepartementsLayer,
+  setDepartementsOpacity as applyDepartementsOpacity,
+  DEFAULT_DEPARTEMENTS_OPACITY,
+  addVillesLayer,
+  removeVillesLayer,
+  setVillesMinPopulation as applyVillesMinPopulation,
+  setVillesTextColor as applyVillesTextColor,
+  setVillesHalo as applyVillesHalo,
+  setVillesTextSizeScale as applyVillesTextSizeScale,
+  DEFAULT_VILLES_TEXT_COLOR,
+  DEFAULT_VILLES_HALO,
+  DEFAULT_VILLES_SIZE_SCALE,
+  refreshVilles,
+} from "./lib/adminLayers";
 import { CompareFormSection, type CompareStage } from "./components/CompareFormSection";
 import { AccordionSection } from "./components/AccordionSection";
 import { ExportSection, type ExportTarget } from "./components/ExportSection";
@@ -37,6 +54,7 @@ const RENDER_MODE_TEXT_KEYS: Record<RenderMode, TranslationKey> = {
 };
 
 type ActiveModal = "info" | "shortcuts" | null;
+type SectionId = "lieu" | "dates" | "layers" | "export" | "partage" | null;
 
 function bboxOf(mapInstance: MapLibreMap): Bbox {
   const b = mapInstance.getBounds();
@@ -65,6 +83,13 @@ export default function App() {
       priority: (params.get("priority") as ScenePriority) || "closest",
       maxCloud: params.get("cc") || String(DEFAULT_MAX_CLOUD),
       windowDays: params.get("w") || String(DEFAULT_WINDOW_DAYS),
+      showDepartements: params.get("dep") === "1",
+      departementsOpacity: params.has("depOp") ? Number(params.get("depOp")) : DEFAULT_DEPARTEMENTS_OPACITY,
+      showVilles: params.get("villes") === "1",
+      villesMinPopulation: params.has("villesPop") ? Number(params.get("villesPop")) : 0,
+      villesTextColor: params.get("villesColor") ? `#${params.get("villesColor")}` : DEFAULT_VILLES_TEXT_COLOR,
+      villesHalo: params.has("villesHalo") ? params.get("villesHalo") === "1" : DEFAULT_VILLES_HALO,
+      villesSizeScale: params.has("villesSize") ? Number(params.get("villesSize")) : DEFAULT_VILLES_SIZE_SCALE,
       // Distinct from merely having d1/d2 (those are always present once the
       // URL has ever been synced — see the effect below) — only restore
       // whichever of the three stages was actually active when this URL was
@@ -83,14 +108,20 @@ export default function App() {
   const [exportTarget, setExportTarget] = useState<ExportTarget>("slide");
   const [status, setStatusState] = useState<{ message: string; isError: boolean }>({ message: "", isError: false });
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  // Accordion sections: independent, not mutually exclusive — "Dates &
+  // Accordion sections: mutually exclusive (classic single-open accordion)
+  // — opening one collapses whichever other was open, instead of letting
+  // them pile up and push each other down the narrow side panel. "Dates &
   // rendu" starts open since running a compare is the primary action;
   // "Export" auto-opens once a compare succeeds (see effect below) since
   // there's nothing to export before that.
-  const [lieuOpen, setLieuOpen] = useState(false);
-  const [datesOpen, setDatesOpen] = useState(true);
-  const [exportOpen, setExportOpen] = useState(false);
-  const [partageOpen, setPartageOpen] = useState(false);
+  const [openSection, setOpenSection] = useState<SectionId>("dates");
+  const [showDepartements, setShowDepartements] = useState(initial.showDepartements);
+  const [departementsOpacity, setDepartementsOpacity] = useState(initial.departementsOpacity);
+  const [showVilles, setShowVilles] = useState(initial.showVilles);
+  const [villesMinPopulation, setVillesMinPopulation] = useState(initial.villesMinPopulation);
+  const [villesTextColor, setVillesTextColor] = useState(initial.villesTextColor);
+  const [villesHalo, setVillesHalo] = useState(initial.villesHalo);
+  const [villesSizeScale, setVillesSizeScale] = useState(initial.villesSizeScale);
   const [pendingExportKind, setPendingExportKind] = useState<ExportKind | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [animatedBusy, setAnimatedBusy] = useState(false);
@@ -119,7 +150,16 @@ export default function App() {
     },
     () => syncUrlToCurrentState(),
   );
-  const compareMaps = useCompareMaps({ onMoveEnd: () => syncUrlToCurrentState() });
+  const compareMaps = useCompareMaps({
+    onMoveEnd: (map) => {
+      syncUrlToCurrentState();
+      if (showVilles) {
+        const inst = compareMaps.instancesRef.current;
+        const targets = [inst.mapA, inst.mapB].filter((m): m is MapLibreMap => m !== null);
+        if (targets.length) void refreshVilles(targets, bboxOf(map), map.getZoom());
+      }
+    },
+  });
 
   function getActiveMap(): MapLibreMap | null {
     return compareMaps.instancesRef.current.mapA ?? baseMap.mapRef.current;
@@ -154,6 +194,20 @@ export default function App() {
     } else if (compareMaps.isOpen) {
       params.set("cmp", "1");
     }
+    // Départements/villes overlays — only meaningful (and only ever shown
+    // to the user) once a view is open, but harmless to carry along even
+    // when idle so re-opening a view later restores the same look.
+    if (showDepartements) {
+      params.set("dep", "1");
+      params.set("depOp", departementsOpacity.toFixed(2));
+    }
+    if (showVilles) {
+      params.set("villes", "1");
+      params.set("villesPop", String(villesMinPopulation));
+      params.set("villesColor", villesTextColor.replace(/^#/, ""));
+      params.set("villesHalo", villesHalo ? "1" : "0");
+      params.set("villesSize", villesSizeScale.toFixed(2));
+    }
     return params;
   }
 
@@ -171,7 +225,23 @@ export default function App() {
   useEffect(() => {
     syncUrlToCurrentState();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date1, date2, mode, priority, maxCloud, windowDays, compareMaps.isOpen, compareMaps.isComparing]);
+  }, [
+    date1,
+    date2,
+    mode,
+    priority,
+    maxCloud,
+    windowDays,
+    compareMaps.isOpen,
+    compareMaps.isComparing,
+    showDepartements,
+    departementsOpacity,
+    showVilles,
+    villesMinPopulation,
+    villesTextColor,
+    villesHalo,
+    villesSizeScale,
+  ]);
 
   async function handleCompare(preferredMap?: MapLibreMap) {
     if (compareBusyRef.current) return;
@@ -278,16 +348,65 @@ export default function App() {
     wasOpenRef.current = compareMaps.isOpen;
   }, [compareMaps.isOpen, baseMap.mapRef]);
 
+  // Applies the current départements/villes toggle state (and their
+  // opacity/population controls) to whichever compare-mode map instances
+  // currently exist. Only mapA/mapB ever get these overlays — the base
+  // browsing map stays untouched, and the "Couches" section itself is only
+  // shown once a view is open (see the panel JSX below), so there's nothing
+  // to apply before that anyway. Re-runs on every toggle/slider change *and*
+  // whenever isOpen/isComparing/mapGeneration changes — compareMaps.instancesRef
+  // is a plain ref (not React state), so a fresh mapA/mapB pair built by
+  // runCompare/runSingle (e.g. re-running "Comparer" with new dates while
+  // already comparing, which leaves isOpen/isComparing unchanged) wouldn't
+  // otherwise be noticed, and the overlays would silently vanish on reload.
+  useEffect(() => {
+    const maps = [compareMaps.instancesRef.current.mapA, compareMaps.instancesRef.current.mapB].filter(
+      (m): m is MapLibreMap => m !== null,
+    );
+    for (const map of maps) {
+      const apply = () => {
+        if (showDepartements) void addDepartementsLayer(map, departementsOpacity).then(() => applyDepartementsOpacity(map, departementsOpacity));
+        else removeDepartementsLayer(map);
+        if (showVilles) {
+          const isNew = addVillesLayer(map, { color: villesTextColor, halo: villesHalo, sizeScale: villesSizeScale });
+          applyVillesMinPopulation(map, villesMinPopulation);
+          applyVillesTextColor(map, villesTextColor);
+          applyVillesHalo(map, villesHalo);
+          applyVillesTextSizeScale(map, villesSizeScale);
+          if (isNew) void refreshVilles([map], bboxOf(map), map.getZoom());
+        } else {
+          removeVillesLayer(map);
+        }
+      };
+      if (map.isStyleLoaded()) apply();
+      else map.once("load", apply);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    showDepartements,
+    departementsOpacity,
+    showVilles,
+    villesMinPopulation,
+    villesTextColor,
+    villesHalo,
+    villesSizeScale,
+    compareMaps.isOpen,
+    compareMaps.isComparing,
+    compareMaps.mapGeneration,
+  ]);
+
   function handleModeChange(value: RenderMode) {
     setMode(value);
     if (compareMaps.isOpen) compareMaps.changeMode(value);
   }
 
   // Export has nothing to act on before a comparison succeeds — open it
-  // automatically the moment one does, and collapse it again on close so it
-  // doesn't linger open and empty for the next session.
+  // automatically the moment one does (collapsing whichever section was
+  // open), and fall back to "Dates & rendu" once the comparison closes so
+  // it doesn't linger open and empty for the next session.
   useEffect(() => {
-    setExportOpen(compareMaps.isComparing);
+    if (compareMaps.isComparing) setOpenSection("export");
+    else setOpenSection((current) => (current === "export" ? "dates" : current));
   }, [compareMaps.isComparing]);
 
   // --- Export -----------------------------------------------------------------
@@ -557,7 +676,12 @@ export default function App() {
       </button>
 
       <div id="panel" className={menu.collapsed ? "collapsed" : ""}>
-        <AccordionSection id="lieu-section" title={t("sectionPlace")} open={lieuOpen} onToggle={setLieuOpen}>
+        <AccordionSection
+          id="lieu-section"
+          title={t("sectionPlace")}
+          open={openSection === "lieu"}
+          onToggle={(open) => setOpenSection(open ? "lieu" : null)}
+        >
           <PlaceSearchSection
             query={place.query}
             onQueryChange={place.setQuery}
@@ -567,7 +691,12 @@ export default function App() {
           />
         </AccordionSection>
 
-        <AccordionSection id="dates-section" title={t("sectionDatesRender")} open={datesOpen} onToggle={setDatesOpen}>
+        <AccordionSection
+          id="dates-section"
+          title={t("sectionDatesRender")}
+          open={openSection === "dates"}
+          onToggle={(open) => setOpenSection(open ? "dates" : null)}
+        >
           <CompareFormSection
             date1={date1}
             date2={date2}
@@ -589,8 +718,39 @@ export default function App() {
           />
         </AccordionSection>
 
+        {compareMaps.isOpen && (
+          <AccordionSection
+            id="layers-section"
+            title={t("sectionLayers")}
+            open={openSection === "layers"}
+            onToggle={(open) => setOpenSection(open ? "layers" : null)}
+          >
+            <LayersSection
+              showDepartements={showDepartements}
+              onShowDepartementsChange={setShowDepartements}
+              departementsOpacity={departementsOpacity}
+              onDepartementsOpacityChange={setDepartementsOpacity}
+              showVilles={showVilles}
+              onShowVillesChange={setShowVilles}
+              villesMinPopulation={villesMinPopulation}
+              onVillesMinPopulationChange={setVillesMinPopulation}
+              villesTextColor={villesTextColor}
+              onVillesTextColorChange={setVillesTextColor}
+              villesHalo={villesHalo}
+              onVillesHaloChange={setVillesHalo}
+              villesSizeScale={villesSizeScale}
+              onVillesSizeScaleChange={setVillesSizeScale}
+            />
+          </AccordionSection>
+        )}
+
         {compareMaps.isComparing && (
-          <AccordionSection id="export-section" title={t("sectionExport")} open={exportOpen} onToggle={setExportOpen}>
+          <AccordionSection
+            id="export-section"
+            title={t("sectionExport")}
+            open={openSection === "export"}
+            onToggle={(open) => setOpenSection(open ? "export" : null)}
+          >
             <ExportSection
               exportTarget={exportTarget}
               onExportTargetChange={setExportTarget}
@@ -602,7 +762,12 @@ export default function App() {
           </AccordionSection>
         )}
 
-        <AccordionSection id="partage-section" title={t("sectionShare")} open={partageOpen} onToggle={setPartageOpen}>
+        <AccordionSection
+          id="partage-section"
+          title={t("sectionShare")}
+          open={openSection === "partage"}
+          onToggle={(open) => setOpenSection(open ? "partage" : null)}
+        >
           <button id="share-btn" onClick={() => void handleShare()}>
             {t("shareBtn")}
           </button>

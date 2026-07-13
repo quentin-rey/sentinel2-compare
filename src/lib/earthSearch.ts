@@ -53,6 +53,12 @@ interface LoadSceneDataResult {
 
 interface StacFeature {
   id: string;
+  // The scene's own footprint extent (one MGRS tile) — distinct from the
+  // *query* bbox passed to querySceneList. Used to pick, among same-day
+  // candidates from different tiles, whichever one actually covers the
+  // requested viewport instead of an arbitrary "first in the response" pick
+  // (see chooseBestCandidate below).
+  bbox: Bbox;
   properties: {
     datetime: string;
     "eo:cloud_cover"?: number;
@@ -132,6 +138,38 @@ function tileCodeFromGridCode(gridCode: string | undefined, fallback: string): s
   return gridCode.startsWith("MGRS-") ? gridCode.slice(5) : gridCode;
 }
 
+function bboxOverlapArea(a: Bbox, b: Bbox): number {
+  const west = Math.max(a[0], b[0]);
+  const south = Math.max(a[1], b[1]);
+  const east = Math.min(a[2], b[2]);
+  const north = Math.min(a[3], b[3]);
+  if (east <= west || north <= south) return 0;
+  return (east - west) * (north - south);
+}
+
+// A viewport straddling two adjacent MGRS tiles (common near a tile
+// boundary — e.g. central Paris sits right on the 31UDP/31UDQ seam) can get
+// same-day features from *both* tiles. The renderer only ever draws one
+// scene per side (setSceneLayer in useCompareMaps.ts has no multi-tile
+// compositing), so picking the wrong one leaves a real chunk of the
+// requested view blank with no indication why — the "(partial)" label only
+// tracks whether every tile *exists* that day, not which one got rendered.
+// Preferring whichever candidate's own footprint overlaps the query bbox
+// the most (ties broken by cloud cover) fixes the common case, though a
+// viewport that genuinely spans most of both tiles will still be missing
+// whichever half didn't get picked — true multi-tile compositing would be a
+// much bigger change.
+function chooseBestCandidate(bbox: Bbox, candidates: StacFeature[]): StacFeature {
+  return candidates.reduce((best, candidate) => {
+    const bestOverlap = bboxOverlapArea(bbox, best.bbox);
+    const candidateOverlap = bboxOverlapArea(bbox, candidate.bbox);
+    if (candidateOverlap !== bestOverlap) return candidateOverlap > bestOverlap ? candidate : best;
+    const bestCloud = best.properties["eo:cloud_cover"] ?? 100;
+    const candidateCloud = candidate.properties["eo:cloud_cover"] ?? 100;
+    return candidateCloud < bestCloud ? candidate : best;
+  });
+}
+
 async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacFeature[]> {
   const params = new URLSearchParams({
     collections: "sentinel-2-l2a",
@@ -183,21 +221,28 @@ export async function loadSceneData(
     return { info: { found: false, count: 0, tileCount: 0 }, dates: [] };
   }
 
-  const byDay = new Map<string, { date: string; productId: string; tiles: Set<string>; cloudCover: number }>();
+  const byDay = new Map<string, { date: string; candidates: StacFeature[]; tiles: Set<string> }>();
   const allTiles = new Set<string>();
   for (const f of features) {
     const day = f.properties.datetime.slice(0, 10);
     const tile = tileCodeFromGridCode(f.properties["grid:code"], f.id);
-    const cloudCover = f.properties["eo:cloud_cover"] ?? 100;
     allTiles.add(tile);
-    if (!byDay.has(day)) byDay.set(day, { date: day, productId: f.id, tiles: new Set(), cloudCover });
-    byDay.get(day)!.tiles.add(tile);
+    if (!byDay.has(day)) byDay.set(day, { date: day, candidates: [], tiles: new Set() });
+    const entry = byDay.get(day)!;
+    entry.tiles.add(tile);
+    entry.candidates.push(f);
   }
 
-  const days: DayEntry[] = [...byDay.values()].map((d) => ({
-    ...d,
-    dayDiff: Math.abs(new Date(d.date + "T00:00:00Z").getTime() - target.getTime()) / 86400000,
-  }));
+  const days: DayEntry[] = [...byDay.values()].map((d) => {
+    const best = chooseBestCandidate(bbox, d.candidates);
+    return {
+      date: d.date,
+      productId: best.id,
+      cloudCover: best.properties["eo:cloud_cover"] ?? 100,
+      tiles: d.tiles,
+      dayDiff: Math.abs(new Date(d.date + "T00:00:00Z").getTime() - target.getTime()) / 86400000,
+    };
+  });
 
   let info: SceneInfo;
   if (priority === "leastcloud") {
