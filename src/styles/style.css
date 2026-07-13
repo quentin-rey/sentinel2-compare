@@ -893,3 +893,155 @@ kbd {
     top: 12px;
   }
 }
+
+#panel .layer-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+#panel .layer-card + .layer-card {
+  margin-top: 8px;
+}
+
+#panel .layer-card.active {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+#panel .layer-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+#panel .layer-card-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+#panel .layer-card-body {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+#panel .layer-control-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+#panel .layer-control-value {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+#panel .layer-range {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+}
+
+#panel .layer-hint {
+  color: var(--text-muted);
+  font-size: 11.5px;
+  margin: 8px 0 0;
+  line-height: 1.4;
+}
+
+#panel .layer-advanced {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+#panel .layer-advanced summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+#panel .layer-advanced .layer-control-row-spaced {
+  margin-top: 10px;
+}
+
+#panel .layer-swatches {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+#panel .layer-swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+}
+
+#panel .layer-swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Custom switch, built on a visually-hidden native checkbox so it stays
+   keyboard/screen-reader accessible for free. */
+#panel .layer-switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex: none;
+  cursor: pointer;
+}
+
+#panel .layer-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+#panel .layer-switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background 0.15s;
+}
+
+#panel .layer-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.15s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+#panel .layer-switch input:checked + .layer-switch-track {
+  background: var(--accent);
+}
+
+#panel .layer-switch input:checked + .layer-switch-track .layer-switch-thumb {
+  transform: translateX(14px);
+}
+
+#panel .layer-switch input:focus-visible + .layer-switch-track {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}

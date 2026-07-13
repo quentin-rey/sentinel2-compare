@@ -25,12 +25,25 @@ export interface Translations {
   // Accordion section titles
   sectionPlace: string;
   sectionDatesRender: string;
+  sectionLayers: string;
   sectionExport: string;
   sectionShare: string;
 
   // Place search
   placeSearchLabel: string;
   placeSearchPlaceholder: string;
+
+  // Admin layers (départements / villes overlays)
+  layerDepartementsLabel: string;
+  layerOpacityLabel: string;
+  layerVillesLabel: string;
+  layerVillesCountLabel: string;
+  layerVillesMinPopulationValue: (p: { population: string }) => string;
+  layerVillesMinPopulationAll: string;
+  layerVillesZoomHint: string;
+  layerVillesColorLabel: string;
+  layerVillesHaloLabel: string;
+  layerVillesSizeLabel: string;
 
   // Compare form
   date1Label: string;
@@ -160,11 +173,23 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     sectionPlace: "Lieu",
     sectionDatesRender: "Dates & rendu",
+    sectionLayers: "Couches",
     sectionExport: "Export",
     sectionShare: "Partage",
 
     placeSearchLabel: "Rechercher un lieu",
     placeSearchPlaceholder: "Ville, adresse, lieu…",
+
+    layerDepartementsLabel: "Départements",
+    layerOpacityLabel: "Opacité",
+    layerVillesLabel: "Villes",
+    layerVillesCountLabel: "Population minimale",
+    layerVillesMinPopulationValue: ({ population }) => `≥ ${population} hab.`,
+    layerVillesMinPopulationAll: "Toutes",
+    layerVillesZoomHint: "D'autres villes apparaissent en zoomant.",
+    layerVillesColorLabel: "Couleur du texte",
+    layerVillesHaloLabel: "Contour",
+    layerVillesSizeLabel: "Taille du texte",
 
     date1Label: "Date 1 (avant)",
     date2Label: "Date 2 (après)",
@@ -287,11 +312,23 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     sectionPlace: "Place",
     sectionDatesRender: "Dates & render",
+    sectionLayers: "Layers",
     sectionExport: "Export",
     sectionShare: "Share",
 
     placeSearchLabel: "Search a place",
     placeSearchPlaceholder: "City, address, place…",
+
+    layerDepartementsLabel: "Départements",
+    layerOpacityLabel: "Opacity",
+    layerVillesLabel: "Cities",
+    layerVillesCountLabel: "Minimum population",
+    layerVillesMinPopulationValue: ({ population }) => `≥ ${population} pop.`,
+    layerVillesMinPopulationAll: "All",
+    layerVillesZoomHint: "More cities appear as you zoom in.",
+    layerVillesColorLabel: "Text color",
+    layerVillesHaloLabel: "Outline",
+    layerVillesSizeLabel: "Text size",
 
     date1Label: "Date 1 (before)",
     date2Label: "Date 2 (after)",
