@@ -227,6 +227,31 @@ export function drawOverlayLabels(
   return canvas;
 }
 
+interface ExportSingleImageOptions {
+  map: MapLibreMap;
+  format?: ExportFormat;
+  filename?: string;
+  labels?: ExportLabels;
+  maxWidth?: number;
+  quality?: number;
+}
+
+/**
+ * Same idea as exportCompareImage, but for the wizard's single-image stage
+ * (no second map/swipe to composite against) — issue #4. `labels`, if
+ * given, should only ever populate `before` (there's no "after" side here);
+ * drawOverlayLabels is called with side "before" so its label text is
+ * dropped as redundant, same as a single-side compare export.
+ */
+export async function exportSingleImage({ map, format = "png", filename, labels, maxWidth, quality = 0.92 }: ExportSingleImageOptions): Promise<void> {
+  const mime = format === "jpeg" ? "image/jpeg" : "image/png";
+  const ext = format === "jpeg" ? "jpg" : "png";
+  const canvas = copyToCanvas2d(map.getCanvas(), maxWidth);
+  if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
+  const blob = await canvasToBlob(canvas, mime, quality);
+  downloadBlob(blob, filename || `sentinel2-image.${ext}`);
+}
+
 interface ExportCompareImageOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
