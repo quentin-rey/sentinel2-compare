@@ -109,6 +109,13 @@ html, body {
   box-shadow: 0 0 5px rgba(0,0,0,0.7);
   z-index: 10;
   transition: filter 0.15s ease;
+  /* Without this, iOS Safari can let the maps' own touch-pan/pinch-zoom
+     gesture compete with the drag mid-swipe (see lib/swipe.ts's
+     setMapGesturesEnabled comment) — this tells the browser never to
+     treat a touch starting here as a native scroll/zoom gesture at all. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 #swiper:hover {
