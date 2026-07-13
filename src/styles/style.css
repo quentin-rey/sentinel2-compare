@@ -167,6 +167,18 @@ html, body {
   cursor: help;
 }
 
+/* Without an explicit side, both labels fall back to the same static
+   (top-left-ish) position and stack directly on top of each other —
+   "avant" hidden behind "après" since it renders later in the DOM
+   (issue #3). Each side gets its own corner instead. */
+.compare-label.label-a {
+  left: 12px;
+}
+
+.compare-label.label-b {
+  right: 12px;
+}
+
 .date-picker {
   cursor: pointer;
   background: rgba(255,255,255,0.15);
