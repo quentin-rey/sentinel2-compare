@@ -4,6 +4,7 @@ import { useCompareMaps, type CompareOpts, type CompareView as CompareViewParams
 import { useTheme } from "./hooks/useTheme";
 import { useMenuCollapsed } from "./hooks/useMenuCollapsed";
 import { useToasts } from "./hooks/useToasts";
+import { useDisablePinchZoom } from "./hooks/useDisablePinchZoom";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { useTranslation } from "./hooks/useLanguage";
 import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
@@ -139,6 +140,7 @@ export default function App() {
   const theme = useTheme();
   const menu = useMenuCollapsed();
   const { toasts, showToast } = useToasts();
+  useDisablePinchZoom();
   const place = useGeocodeSearch();
   const { t } = useTranslation();
 
