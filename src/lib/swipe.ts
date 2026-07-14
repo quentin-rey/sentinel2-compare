@@ -74,8 +74,15 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
   }
 
   let dragging = false;
+  let downTime = 0;
+  let downX = 0;
+  let downY = 0;
+  let lastTapTime = 0;
   const onPointerDown = (e: PointerEvent) => {
     dragging = true;
+    downTime = performance.now();
+    downX = e.clientX;
+    downY = e.clientY;
     sliderEl.setPointerCapture(e.pointerId);
     setMapGesturesEnabled(false);
   };
@@ -89,13 +96,35 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     dragging = false;
     setMapGesturesEnabled(true);
   };
+  // The handle's own `touch-action: none` (needed to stop the map's pinch
+  // gesture stealing a drag mid-swipe) has a side effect on mobile: Safari
+  // and Chrome only synthesize a "dblclick" from two taps as part of their
+  // native double-tap-to-zoom handling, which touch-action: none disables
+  // entirely — so onDoubleClick in CompareView never fires on a phone.
+  // Detect the double-tap ourselves from two quick, near-stationary
+  // touch/pen pointer sequences instead (mouse already gets dblclick fine).
+  const onPointerUp = (e: PointerEvent) => {
+    if (e.pointerType !== "mouse") {
+      const isTap = performance.now() - downTime < 300 && Math.hypot(e.clientX - downX, e.clientY - downY) < 10;
+      if (isTap) {
+        const now = performance.now();
+        if (now - lastTapTime < 350) {
+          setPosition(0.5);
+          lastTapTime = 0;
+        } else {
+          lastTapTime = now;
+        }
+      }
+    }
+    endDrag();
+  };
   const onPointerMove = (e: PointerEvent) => {
     if (!dragging) return;
     const rect = containerEl.getBoundingClientRect();
     setPosition((e.clientX - rect.left) / rect.width);
   };
   sliderEl.addEventListener("pointerdown", onPointerDown);
-  sliderEl.addEventListener("pointerup", endDrag);
+  sliderEl.addEventListener("pointerup", onPointerUp);
   sliderEl.addEventListener("pointercancel", endDrag);
   sliderEl.addEventListener("pointermove", onPointerMove);
 
@@ -103,7 +132,7 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     mapA.off("move", onMoveA);
     mapB.off("move", onMoveB);
     sliderEl.removeEventListener("pointerdown", onPointerDown);
-    sliderEl.removeEventListener("pointerup", endDrag);
+    sliderEl.removeEventListener("pointerup", onPointerUp);
     sliderEl.removeEventListener("pointercancel", endDrag);
     sliderEl.removeEventListener("pointermove", onPointerMove);
     // In case a swipe control gets torn down mid-drag (e.g. re-running
