@@ -54,7 +54,9 @@ const RENDER_MODE_TEXT_KEYS: Record<RenderMode, TranslationKey> = {
 };
 
 type ActiveModal = "info" | "shortcuts" | null;
-type SectionId = "lieu" | "dates" | "layers" | "export" | "partage" | null;
+// "dates" is deliberately not part of this group — see the `datesOpen`
+// state below.
+type SectionId = "lieu" | "layers" | "export" | "partage" | null;
 
 function bboxOf(mapInstance: MapLibreMap): Bbox {
   const b = mapInstance.getBounds();
@@ -108,13 +110,17 @@ export default function App() {
   const [exportTarget, setExportTarget] = useState<ExportTarget>("slide");
   const [status, setStatusState] = useState<{ message: string; isError: boolean }>({ message: "", isError: false });
   const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  // Accordion sections: mutually exclusive (classic single-open accordion)
-  // — opening one collapses whichever other was open, instead of letting
-  // them pile up and push each other down the narrow side panel. "Dates &
-  // rendu" starts open since running a compare is the primary action;
-  // "Export" auto-opens once a compare succeeds (see effect below) since
-  // there's nothing to export before that.
-  const [openSection, setOpenSection] = useState<SectionId>("dates");
+  // Accordion sections: Lieu/Couches/Export/Partage are mutually exclusive
+  // (classic single-open accordion) — opening one collapses whichever
+  // other was open, instead of letting them pile up and push each other
+  // down the narrow side panel. "Dates & rendu" is deliberately kept out
+  // of that group in its own `datesOpen` state: it holds the
+  // Comparer/Fermer/date controls, which need to stay reachable without an
+  // extra click even once "Export" auto-opens after a compare succeeds —
+  // losing one-click access to "Fermer" right when a comparison is showing
+  // would be a real regression, not just a cosmetic one.
+  const [openSection, setOpenSection] = useState<SectionId>(null);
+  const [datesOpen, setDatesOpen] = useState(true);
   const [showDepartements, setShowDepartements] = useState(initial.showDepartements);
   const [departementsOpacity, setDepartementsOpacity] = useState(initial.departementsOpacity);
   const [showVilles, setShowVilles] = useState(initial.showVilles);
@@ -401,12 +407,14 @@ export default function App() {
   }
 
   // Export has nothing to act on before a comparison succeeds — open it
-  // automatically the moment one does (collapsing whichever section was
-  // open), and fall back to "Dates & rendu" once the comparison closes so
-  // it doesn't linger open and empty for the next session.
+  // automatically the moment one does (collapsing whichever *other*
+  // mutually-exclusive section was open — "Dates & rendu" isn't part of
+  // that group, so it stays exactly as the user left it, "Fermer" included),
+  // and collapse it again once the comparison closes so it doesn't linger
+  // open and empty for the next session.
   useEffect(() => {
     if (compareMaps.isComparing) setOpenSection("export");
-    else setOpenSection((current) => (current === "export" ? "dates" : current));
+    else setOpenSection((current) => (current === "export" ? null : current));
   }, [compareMaps.isComparing]);
 
   // --- Export -----------------------------------------------------------------
@@ -775,12 +783,7 @@ export default function App() {
           />
         </AccordionSection>
 
-        <AccordionSection
-          id="dates-section"
-          title={t("sectionDatesRender")}
-          open={openSection === "dates"}
-          onToggle={(open) => setOpenSection(open ? "dates" : null)}
-        >
+        <AccordionSection id="dates-section" title={t("sectionDatesRender")} open={datesOpen} onToggle={setDatesOpen}>
           <CompareFormSection
             date1={date1}
             date2={date2}
