@@ -74,6 +74,10 @@ html, body {
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   background: var(--page-bg);
   color: var(--text);
+  /* Belt-and-suspenders for the viewport meta's user-scalable=no: some
+     mobile browsers (notably iOS Safari) still allow pinch/double-tap
+     zoom on the page despite it. */
+  touch-action: pan-x pan-y;
 }
 
 #map, #compare {
