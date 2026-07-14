@@ -759,12 +759,15 @@ export default function App() {
 
       <button
         id="menu-toggle"
+        className={menu.collapsed ? "" : "open"}
         title={t("menuToggleTooltip")}
         aria-expanded={!menu.collapsed}
         aria-controls="panel"
         onClick={menu.toggleMenu}
       >
-        ☰
+        <span />
+        <span />
+        <span />
       </button>
 
       <div id="panel" className={menu.collapsed ? "collapsed" : ""}>
