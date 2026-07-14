@@ -215,6 +215,12 @@ html, body {
   flex-shrink: 0;
 }
 
+.label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -936,9 +942,21 @@ kbd {
     transform: translateY(calc(100% + 24px));
   }
 
+  /* Long localized text (French month names, "· 100% ☁ (partiel)") can run
+     wide enough that the two opposite-corner bubbles collide on a narrow
+     phone — cap each to less than half the viewport and truncate. */
   .compare-label {
     bottom: auto;
     top: 12px;
+    max-width: calc(50vw - 24px);
+    box-sizing: border-box;
+  }
+
+  /* #menu-toggle sits at the same top-left spot (issue #15) — push the
+     "avant" bubble below it; label-b (right side) doesn't share space
+     with it so it keeps the default top offset. */
+  .compare-label.label-a {
+    top: calc(12px + 38px + 10px);
   }
 }
 
