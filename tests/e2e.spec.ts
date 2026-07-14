@@ -146,7 +146,7 @@ test("exports a PNG with the expected filename pattern", async ({ page }) => {
   expect(download.suggestedFilename()).toMatch(/^sentinel2_true-color_\d{4}-\d{2}-\d{2}_vs_\d{4}-\d{2}-\d{2}_comparaison_orig\.png$/);
 });
 
-test("accordion sections toggle independently, and Export auto-opens after a compare", async ({ page }) => {
+test("Lieu/Couches/Export/Partage are mutually exclusive, Dates & rendu is independent, and Export auto-opens after a compare", async ({ page }) => {
   await page.goto("/");
 
   // Lieu starts closed, Dates & rendu starts open.
@@ -154,18 +154,27 @@ test("accordion sections toggle independently, and Export auto-opens after a com
   await expect(page.locator("#dates-section")).toHaveAttribute("open", "");
   await expect(page.locator("#export-section")).toHaveCount(0); // not rendered before any comparison
 
+  // Opening Lieu doesn't collapse Dates & rendu — it's not part of the
+  // mutually-exclusive group (see the comment on App.tsx's `datesOpen`):
+  // the Comparer/Fermer/date controls it holds need to stay reachable
+  // without an extra click even once "Export" auto-opens below.
   await page.click("#lieu-section > summary");
   await expect(page.locator("#lieu-section")).toHaveAttribute("open", "");
+  await expect(page.locator("#dates-section")).toHaveAttribute("open", "");
 
+  // Dates & rendu toggles independently — collapsing hides the fields but
+  // doesn't unmount them.
   await page.click("#dates-section > summary");
   await expect(page.locator("#dates-section")).not.toHaveAttribute("open", "");
-  // Collapsing the section hides the fields but doesn't unmount them.
   await expect(page.locator("#display-btn")).toBeHidden();
   await page.click("#dates-section > summary");
   await expect(page.locator("#display-btn")).toBeVisible();
 
   await runFullCompare(page, "2026-06-01", "2026-07-08");
   await expect(page.locator("#export-section")).toHaveAttribute("open", "");
+  // Still reachable — Export auto-opening didn't collapse it.
+  await expect(page.locator("#dates-section")).toHaveAttribute("open", "");
+  await expect(page.locator("#close-btn")).toBeVisible();
 });
 
 test("place search finds and selects a location", async ({ page }) => {
