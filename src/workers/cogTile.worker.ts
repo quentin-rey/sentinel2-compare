@@ -14,6 +14,10 @@ export interface CogTileRequest {
   z: number;
   x: number;
   y: number;
+  // Output pixel size (square) — devicePixelRatio-scaled by the caller (see
+  // cogProtocol.ts) so the tile actually fills a high-DPI screen's physical
+  // pixels instead of getting stretched from a fixed 256x256 render.
+  tileSize: number;
 }
 
 export interface CogRegionRequest {
@@ -33,7 +37,7 @@ self.onmessage = async (e: MessageEvent<CogRenderRequest>) => {
   const req = e.data;
   try {
     const buffer =
-      req.kind === "tile" ? await renderTilePng(req.scene, req.mode, req.z, req.x, req.y) : await renderRegionPng(req.scene, req.mode, req.bboxMerc, req.outputWidth, req.outputHeight);
+      req.kind === "tile" ? await renderTilePng(req.scene, req.mode, req.z, req.x, req.y, req.tileSize) : await renderRegionPng(req.scene, req.mode, req.bboxMerc, req.outputWidth, req.outputHeight);
     (self as unknown as Worker).postMessage({ id: req.id, buffer } satisfies CogTileResponse, [buffer]);
   } catch (err) {
     (self as unknown as Worker).postMessage({ id: req.id, error: err instanceof Error ? err.message : String(err) } satisfies CogTileResponse);

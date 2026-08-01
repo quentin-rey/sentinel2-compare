@@ -18,7 +18,6 @@ export interface SceneAssets {
   assets: Record<string, string>;
 }
 
-const TILE_SIZE = 256;
 const EARTH_RADIUS = 6378137;
 const ORIGIN_SHIFT = Math.PI * EARTH_RADIUS;
 const WEB_MERCATOR = "EPSG:3857";
@@ -269,9 +268,9 @@ export async function renderRegionRGBA(
   return out;
 }
 
-function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<Uint8ClampedArray> {
+function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number, tileSize: number): Promise<Uint8ClampedArray> {
   const merc = tileBoundsMeters(z, x, y);
-  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], TILE_SIZE, TILE_SIZE);
+  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], tileSize, tileSize);
 }
 
 async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number): Promise<ArrayBuffer> {
@@ -284,9 +283,9 @@ async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number)
   return blob.arrayBuffer();
 }
 
-export async function renderTilePng(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number): Promise<ArrayBuffer> {
-  const rgba = await renderTileRGBA(scene, mode, z, x, y);
-  return rgbaToPng(rgba, TILE_SIZE, TILE_SIZE);
+export async function renderTilePng(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number, tileSize: number): Promise<ArrayBuffer> {
+  const rgba = await renderTileRGBA(scene, mode, z, x, y, tileSize);
+  return rgbaToPng(rgba, tileSize, tileSize);
 }
 
 // Used by the high-resolution export path: same renderer, but for an
