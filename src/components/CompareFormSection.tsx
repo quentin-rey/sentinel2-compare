@@ -118,19 +118,18 @@ export function CompareFormSection({
           <option value="fire">{t("renderModeFire")}</option>
         </select>
       </label>
-      <label>
-        {t("priorityLabel")}
-        <select id="priority" value={priority} onChange={(e) => onPriorityChange(e.target.value as ScenePriority)}>
-          <option value="closest">{t("priorityClosest")}</option>
-          <option value="leastcloud">{t("priorityLeastCloud")}</option>
-        </select>
-      </label>
-      <p id="priority-hint" className={`field-hint${priority === "closest" ? " hidden" : ""}`}>
-        {t("priorityHint")}
-      </p>
-
       <details id="advanced-details">
         <summary>{t("advancedSettings")}</summary>
+        <label>
+          {t("priorityLabel")}
+          <select id="priority" value={priority} onChange={(e) => onPriorityChange(e.target.value as ScenePriority)}>
+            <option value="closest">{t("priorityClosest")}</option>
+            <option value="leastcloud">{t("priorityLeastCloud")}</option>
+          </select>
+        </label>
+        <p id="priority-hint" className={`field-hint${priority === "closest" ? " hidden" : ""}`}>
+          {t("priorityHint")}
+        </p>
         <div className="row">
           <label>
             {t("maxCloudLabel")}
