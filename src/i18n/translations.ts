@@ -11,6 +11,8 @@ export interface Translations {
   closeAriaLabel: string;
   menuToggleTooltip: string;
   compareSliderAriaLabel: string;
+  zoomInAriaLabel: string;
+  zoomOutAriaLabel: string;
   loadingExactDatesBanner: string;
 
   // Navbar
@@ -162,6 +164,8 @@ export const translations: Record<"fr" | "en", Translations> = {
     closeAriaLabel: "Fermer",
     menuToggleTooltip: "Basculer le menu (touche M)",
     compareSliderAriaLabel: "Curseur de comparaison",
+    zoomInAriaLabel: "Zoomer",
+    zoomOutAriaLabel: "Dézoomer",
     loadingExactDatesBanner: "Recherche de la scène exacte et rendu de l'image en cours…",
     navAbout: "À propos",
     navShortcuts: "Raccourcis clavier",
@@ -301,6 +305,8 @@ export const translations: Record<"fr" | "en", Translations> = {
     closeAriaLabel: "Close",
     menuToggleTooltip: "Toggle menu (M key)",
     compareSliderAriaLabel: "Comparison slider",
+    zoomInAriaLabel: "Zoom in",
+    zoomOutAriaLabel: "Zoom out",
     loadingExactDatesBanner: "Finding the exact scene and rendering the image…",
     navAbout: "About",
     navShortcuts: "Keyboard shortcuts",
