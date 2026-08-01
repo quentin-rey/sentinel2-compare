@@ -1,5 +1,11 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { compositeCanvas, drawOverlayLabels, type ExportLabels } from "./exportImage";
+import { compositeCanvas, blendCanvas, drawOverlayLabels, type ExportLabels } from "./exportImage";
+
+// "slide" (default): the same before/after sweep the on-screen comparison
+// slider makes. "opacity": crossfades between the two dates instead —
+// changed areas fade smoothly rather than being revealed by a moving edge
+// (issue #23).
+export type AnimationStyle = "slide" | "opacity";
 
 // gif.js (https://github.com/jnordberg/gif.js) is a UMD/global-based library
 // with a separate Web Worker file for encoding. Loaded lazily (only if the
@@ -67,23 +73,49 @@ function getGifWorkerBlobUrl(): Promise<string> {
   return workerBlobUrlPromise;
 }
 
-// A full back-and-forth sweep (0 -> 1 -> 0) that loops seamlessly, since the
-// value at t=0 and the value approaching t=1 both sit at the same endpoint.
-function triangleWave(t: number): number {
-  return t < 0.5 ? t * 2 : (1 - t) * 2;
+// Fixed pause at each end of the loop — without it, the sweep/crossfade
+// reverses direction the instant it reaches "before" or "after", which
+// doesn't give the viewer any time to actually look at either side.
+// Expressed as a fraction of the cycle (computed from the chosen duration)
+// so a short loop doesn't end up spending most of its length paused.
+const HOLD_MS = 450;
+
+function holdFractionFor(durationMs: number): number {
+  // Capped at 0.4 so each direction's ramp keeps at least 20% of the cycle
+  // even at the shortest duration the UI allows (2s) — otherwise a short
+  // enough loop could have no discernible transition left at all.
+  return Math.min(0.4, HOLD_MS / durationMs);
+}
+
+// A back-and-forth sweep (0 -> 1 -> 0) that loops seamlessly (t=0 and the
+// value approaching t=1 both sit at the same endpoint), holding at each
+// endpoint for `holdFraction` of the cycle before ramping to the other side.
+function waveWithHold(t: number, holdFraction: number): number {
+  const ramp = (1 - 2 * holdFraction) / 2;
+  if (t < holdFraction) return 0;
+  if (t < holdFraction + ramp) return (t - holdFraction) / ramp;
+  if (t < 2 * holdFraction + ramp) return 1;
+  return Math.max(0, 1 - (t - 2 * holdFraction - ramp) / ramp);
+}
+
+function renderFrame(mapA: MapLibreMap, mapB: MapLibreMap, style: AnimationStyle, t: number, holdFraction: number, maxWidth: number): HTMLCanvasElement {
+  const wave = waveWithHold(t, holdFraction);
+  return style === "opacity" ? blendCanvas(mapA, mapB, wave, maxWidth) : compositeCanvas(mapA, mapB, wave, maxWidth);
 }
 
 function generateFrames(
   mapA: MapLibreMap,
   mapB: MapLibreMap,
   frameCount: number,
+  durationMs: number,
   maxWidth: number,
+  style: AnimationStyle,
   labels?: ExportLabels,
 ): HTMLCanvasElement[] {
+  const holdFraction = holdFractionFor(durationMs);
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
-    const t = i / frameCount;
-    const frame = compositeCanvas(mapA, mapB, triangleWave(t), maxWidth);
+    const frame = renderFrame(mapA, mapB, style, i / frameCount, holdFraction, maxWidth);
     if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
     frames.push(frame);
   }
@@ -93,6 +125,7 @@ function generateFrames(
 interface ExportCompareGifOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
+  style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
   maxWidth?: number;
@@ -102,7 +135,8 @@ interface ExportCompareGifOptions {
 }
 
 /**
- * Renders a looping before/after sweep as an animated GIF, entirely in the
+ * Renders a looping before/after sweep (or, with `style: "opacity"`, a
+ * crossfade — see AnimationStyle) as an animated GIF, entirely in the
  * browser (encoding runs in a Web Worker). Returns a Blob (image/gif).
  *
  * `quality` is a 0-1 fraction (higher = better/heavier), matching the JPEG
@@ -112,6 +146,7 @@ interface ExportCompareGifOptions {
 export async function exportCompareGif({
   mapA,
   mapB,
+  style = "slide",
   durationMs = 2400,
   fps = 17,
   maxWidth = 640,
@@ -123,7 +158,7 @@ export async function exportCompareGif({
   const delayMs = Math.round(1000 / fps);
   const gifQuality = Math.max(1, Math.round(31 - quality * 30));
   const [GIFCtor, workerScript] = await Promise.all([loadGifLib(), getGifWorkerBlobUrl()]);
-  const frames = generateFrames(mapA, mapB, frameCount, maxWidth, labels);
+  const frames = generateFrames(mapA, mapB, frameCount, durationMs, maxWidth, style, labels);
 
   return new Promise((resolve, reject) => {
     const gif = new GIFCtor({
@@ -150,6 +185,7 @@ export async function exportCompareGif({
 interface ExportCompareWebmOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
+  style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
   maxWidth?: number;
@@ -159,7 +195,8 @@ interface ExportCompareWebmOptions {
 }
 
 /**
- * Records a looping before/after sweep as a short WebM video using the
+ * Records a looping before/after sweep (or, with `style: "opacity"`, a
+ * crossfade — see AnimationStyle) as a short WebM video using the
  * MediaRecorder API (a canvas is redrawn in real time and captured via
  * `canvas.captureStream()`). Returns a Blob (video/webm), or throws if the
  * browser doesn't support WebM recording (notably some Safari versions).
@@ -167,6 +204,7 @@ interface ExportCompareWebmOptions {
 export async function exportCompareWebm({
   mapA,
   mapB,
+  style = "slide",
   durationMs = 3000,
   fps = 24,
   maxWidth = 640,
@@ -184,7 +222,8 @@ export async function exportCompareWebm({
     throw new Error("L'enregistrement WebM n'est pas supporté par ce navigateur.");
   }
 
-  const first = compositeCanvas(mapA, mapB, 0.5, maxWidth);
+  const holdFraction = holdFractionFor(durationMs);
+  const first = renderFrame(mapA, mapB, style, 0, holdFraction, maxWidth);
   const canvas = document.createElement("canvas");
   canvas.width = first.width;
   canvas.height = first.height;
@@ -210,7 +249,7 @@ export async function exportCompareWebm({
     function step(now: number) {
       const elapsed = now - start;
       const t = (elapsed % durationMs) / durationMs;
-      const frame = compositeCanvas(mapA, mapB, triangleWave(t), maxWidth);
+      const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
       if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0);

@@ -113,6 +113,37 @@ export function compositeCanvas(mapA: MapLibreMap, mapB: MapLibreMap, sliderFrac
   return compositeCanvasesAt(mapA.getCanvas(), mapB.getCanvas(), sliderFraction, targetWidth);
 }
 
+/**
+ * Crossfades canvasA into canvasB at the given `alpha` (0 = all A, 1 = all
+ * B) into a single canvas — the "opacity" animation style (issue #23): an
+ * alternative to the slide sweep's hard edge for GIF/WebM exports, where a
+ * changed area smoothly fades between the two dates instead of being
+ * revealed by a moving line. Same `targetWidth` downscale convention as
+ * compositeCanvasesAt.
+ */
+export function blendCanvasesAt(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement, alpha: number, targetWidth?: number): HTMLCanvasElement {
+  const srcWidth = canvasA.width;
+  const srcHeight = canvasA.height;
+  const scale = targetWidth && targetWidth < srcWidth ? targetWidth / srcWidth : 1;
+  const width = Math.round(srcWidth * scale);
+  const height = Math.round(srcHeight * scale);
+
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = height;
+  const ctx = out.getContext("2d")!;
+
+  ctx.drawImage(canvasA, 0, 0, width, height);
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(canvasB, 0, 0, width, height);
+  ctx.globalAlpha = 1;
+  return out;
+}
+
+export function blendCanvas(mapA: MapLibreMap, mapB: MapLibreMap, alpha: number, targetWidth?: number): HTMLCanvasElement {
+  return blendCanvasesAt(mapA.getCanvas(), mapB.getCanvas(), alpha, targetWidth);
+}
+
 // Font sizes are derived from canvas *width* (which varies less wildly than
 // height across export shapes: full-res retina PNGs vs. downscaled GIF/video
 // frames) and clamped to a sane absolute pixel range, so badges stay legible

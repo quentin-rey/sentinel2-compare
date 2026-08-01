@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation, type TFunction } from "../../hooks/useLanguage";
+import type { AnimationStyle } from "../../lib/animatedExport";
 
 export type ExportKind = "png" | "jpeg" | "gif" | "webm";
 
@@ -36,11 +37,14 @@ export interface ExportConfirmOptions {
   // Render fresh from the satellite data at maxWidth instead of capturing
   // the on-screen canvas — see lib/exportHighRes.ts.
   highRes?: boolean;
+  // GIF/WebM only — "slide" (default) or "opacity" crossfade, see
+  // lib/animatedExport.ts's AnimationStyle.
+  animationStyle?: AnimationStyle;
 }
 
 interface Props {
   kind: ExportKind | null;
-  computeFilename: (kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number) => string;
+  computeFilename: (kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number, animationStyle: AnimationStyle) => string;
   onRequestClose: () => void;
   onDirectClose: () => void;
   onConfirm: (kind: ExportKind, options: ExportConfirmOptions) => void;
@@ -57,6 +61,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
   const [quality, setQuality] = useState(85);
   const [duration, setDuration] = useState(3);
   const [fps, setFps] = useState(20);
+  const [animStyle, setAnimStyle] = useState<AnimationStyle>("slide");
   const [filename, setFilename] = useState("");
   const [filenameEdited, setFilenameEdited] = useState(false);
 
@@ -71,8 +76,9 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
     setQuality(85);
     setDuration(defaultDuration);
     setFps(defaultFps);
+    setAnimStyle("slide");
     setFilenameEdited(false);
-    setFilename(computeFilename(kind, defaultSize, 85, defaultDuration, defaultFps));
+    setFilename(computeFilename(kind, defaultSize, 85, defaultDuration, defaultFps, "slide"));
     // computeFilename intentionally excluded: it closes over live app state
     // (mode/target/lastRenderState) and is expected to change identity often;
     // this effect should only re-run when the export *kind* changes.
@@ -81,9 +87,9 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
 
   useEffect(() => {
     if (!kind || filenameEdited) return;
-    setFilename(computeFilename(kind, size === HIGH_RES_SIZE ? HIGH_RES_WIDTH : size, quality, duration, fps));
+    setFilename(computeFilename(kind, size === HIGH_RES_SIZE ? HIGH_RES_WIDTH : size, quality, duration, fps, animStyle));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [kind, size, quality, duration, fps, filenameEdited]);
+  }, [kind, size, quality, duration, fps, animStyle, filenameEdited]);
 
   if (!kind) {
     return (
@@ -138,6 +144,13 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
 
         {animated && (
           <>
+            <label>
+              {t("animStyleLabel")}
+              <select value={animStyle} onChange={(e) => setAnimStyle(e.target.value as AnimationStyle)}>
+                <option value="slide">{t("animStyleSlide")}</option>
+                <option value="opacity">{t("animStyleOpacity")}</option>
+              </select>
+            </label>
             <div className="row">
               <label>
                 {t("durationLabel", { seconds: duration })}
@@ -176,7 +189,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
           onClick={() => {
             const highRes = size === HIGH_RES_SIZE;
             const effectiveWidth = highRes ? HIGH_RES_WIDTH : size;
-            const finalFilename = filename.trim() || computeFilename(kind, effectiveWidth, quality, duration, fps);
+            const finalFilename = filename.trim() || computeFilename(kind, effectiveWidth, quality, duration, fps, animStyle);
             onConfirm(kind, {
               maxWidth: effectiveWidth || undefined,
               quality: quality / 100,
@@ -184,6 +197,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
               durationMs: animated ? duration * 1000 : undefined,
               fps: animated ? fps : undefined,
               highRes,
+              animationStyle: animated ? animStyle : undefined,
             });
           }}
         >
