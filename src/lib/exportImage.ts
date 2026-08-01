@@ -258,6 +258,31 @@ export function drawOverlayLabels(
   return canvas;
 }
 
+const WATERMARK_TEXT = "Sentinel-2 Compare";
+
+/**
+ * Burns a small "Sentinel-2 Compare" watermark into the top-left corner of
+ * an exported canvas. Unlike drawOverlayLabels (opt-in, driven by the
+ * before/after date readouts), this is applied unconditionally to every
+ * export so shared images/animations stay attributable regardless of the
+ * user's label settings.
+ */
+export function drawWatermark(canvas: HTMLCanvasElement): HTMLCanvasElement {
+  const ctx = canvas.getContext("2d")!;
+  const { width } = canvas;
+  const margin = Math.max(8, Math.round(width / 80));
+  const fontSize = clampFont(width / 75, 10, 15);
+
+  ctx.font = `600 ${fontSize}px ${MONO_FONT}`;
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillText(WATERMARK_TEXT, margin + 1, margin + 1);
+  ctx.fillStyle = "rgba(255,255,255,0.6)";
+  ctx.fillText(WATERMARK_TEXT, margin, margin);
+
+  return canvas;
+}
+
 interface ExportSingleImageOptions {
   map: MapLibreMap;
   format?: ExportFormat;
@@ -278,6 +303,7 @@ export async function exportSingleImage({ map, format = "png", filename, labels,
   const mime = format === "jpeg" ? "image/jpeg" : "image/png";
   const ext = format === "jpeg" ? "jpg" : "png";
   const canvas = copyToCanvas2d(map.getCanvas(), maxWidth);
+  drawWatermark(canvas);
   if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
   const blob = await canvasToBlob(canvas, mime, quality);
   downloadBlob(blob, filename || `sentinel2-image.${ext}`);
@@ -334,6 +360,7 @@ export async function exportCompareImage({
     side = "both";
   }
 
+  drawWatermark(canvas);
   if (labels) drawOverlayLabels(canvas, { ...labels, side });
 
   const blob = await canvasToBlob(canvas, mime, quality);
