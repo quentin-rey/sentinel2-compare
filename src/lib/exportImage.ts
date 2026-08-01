@@ -10,7 +10,7 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 
 export type ExportSide = "before" | "after" | "both";
-export type ExportTarget = "slide" | "before" | "after";
+export type ExportTarget = "slide" | "opacity" | "before" | "after";
 export type ExportFormat = "png" | "jpeg";
 
 interface ExportReadout {
@@ -111,6 +111,36 @@ export function compositeCanvasesAt(
 
 export function compositeCanvas(mapA: MapLibreMap, mapB: MapLibreMap, sliderFraction: number, targetWidth?: number): HTMLCanvasElement {
   return compositeCanvasesAt(mapA.getCanvas(), mapB.getCanvas(), sliderFraction, targetWidth);
+}
+
+/**
+ * Overlays canvasA and canvasB at 50/50 opacity into a single canvas — the
+ * "opacity" export target (issue #23): unlike the slide split, both images
+ * are visible everywhere at once, which makes areas that changed show up as
+ * a soft "ghosting"/double-exposure effect instead of a hard edge. Same
+ * `targetWidth` downscale convention as compositeCanvasesAt.
+ */
+export function blendCanvasesAt(canvasA: HTMLCanvasElement, canvasB: HTMLCanvasElement, targetWidth?: number): HTMLCanvasElement {
+  const srcWidth = canvasA.width;
+  const srcHeight = canvasA.height;
+  const scale = targetWidth && targetWidth < srcWidth ? targetWidth / srcWidth : 1;
+  const width = Math.round(srcWidth * scale);
+  const height = Math.round(srcHeight * scale);
+
+  const out = document.createElement("canvas");
+  out.width = width;
+  out.height = height;
+  const ctx = out.getContext("2d")!;
+
+  ctx.drawImage(canvasA, 0, 0, width, height);
+  ctx.globalAlpha = 0.5;
+  ctx.drawImage(canvasB, 0, 0, width, height);
+  ctx.globalAlpha = 1;
+  return out;
+}
+
+export function blendCanvas(mapA: MapLibreMap, mapB: MapLibreMap, targetWidth?: number): HTMLCanvasElement {
+  return blendCanvasesAt(mapA.getCanvas(), mapB.getCanvas(), targetWidth);
 }
 
 // Font sizes are derived from canvas *width* (which varies less wildly than
@@ -265,12 +295,12 @@ interface ExportCompareImageOptions {
 }
 
 /**
- * `target`: "slide" (composited before/after, default), "before" (mapA
- * alone), or "after" (mapB alone). `filename`, if given, overrides the
- * default generic name. `labels`, if given ({ before, after, attribution }),
- * burns info readouts into the exported image. `maxWidth`, if smaller than
- * the native canvas, downscales the output. `quality` (0-1) controls JPEG
- * compression (ignored for PNG).
+ * `target`: "slide" (composited before/after, default), "opacity" (both
+ * overlaid at 50/50), "before" (mapA alone), or "after" (mapB alone).
+ * `filename`, if given, overrides the default generic name. `labels`, if
+ * given ({ before, after, attribution }), burns info readouts into the
+ * exported image. `maxWidth`, if smaller than the native canvas, downscales
+ * the output. `quality` (0-1) controls JPEG compression (ignored for PNG).
  */
 export async function exportCompareImage({
   mapA,
@@ -297,6 +327,10 @@ export async function exportCompareImage({
     canvas = copyToCanvas2d(mapB.getCanvas(), maxWidth);
     suffix = "apres";
     side = "after";
+  } else if (target === "opacity") {
+    canvas = blendCanvas(mapA, mapB, maxWidth);
+    suffix = "opacite";
+    side = "both";
   } else {
     canvas = compositeCanvas(mapA, mapB, sliderFraction, maxWidth);
     suffix = "comparaison";

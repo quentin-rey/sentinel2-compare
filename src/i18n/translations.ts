@@ -74,6 +74,7 @@ export interface Translations {
   // Export section
   exportImageLabel: string;
   exportImageSlide: string;
+  exportImageOpacity: string;
   exportImageBefore: string;
   exportImageAfter: string;
   exportPng: string;
@@ -221,6 +222,7 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     exportImageLabel: "Image",
     exportImageSlide: "Comparaison (slide)",
+    exportImageOpacity: "Comparaison (opacité)",
     exportImageBefore: "Avant seul",
     exportImageAfter: "Après seul",
     exportPng: "PNG",
@@ -362,6 +364,7 @@ export const translations: Record<"fr" | "en", Translations> = {
 
     exportImageLabel: "Image",
     exportImageSlide: "Comparison (slide)",
+    exportImageOpacity: "Comparison (opacity)",
     exportImageBefore: "Before only",
     exportImageAfter: "After only",
     exportPng: "PNG",

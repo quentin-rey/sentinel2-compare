@@ -1,7 +1,7 @@
 import { useTranslation } from "../hooks/useLanguage";
 import type { ExportKind } from "./modals/ExportSettingsModal";
 
-export type ExportTarget = "slide" | "before" | "after";
+export type ExportTarget = "slide" | "opacity" | "before" | "after";
 
 interface Props {
   // The wizard's single-image stage (issue #4) — no second image, so the
@@ -26,6 +26,7 @@ export function ExportSection({ single, exportTarget, onExportTargetChange, onOp
           {t("exportImageLabel")}
           <select id="export-target" value={exportTarget} onChange={(e) => onExportTargetChange(e.target.value as ExportTarget)}>
             <option value="slide">{t("exportImageSlide")}</option>
+            <option value="opacity">{t("exportImageOpacity")}</option>
             <option value="before">{t("exportImageBefore")}</option>
             <option value="after">{t("exportImageAfter")}</option>
           </select>

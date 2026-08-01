@@ -15,6 +15,7 @@ import type { RenderMode } from "./config";
 import type { CogRegionRequest, CogTileResponse } from "../workers/cogTile.worker";
 import {
   compositeCanvasesAt,
+  blendCanvasesAt,
   drawOverlayLabels,
   canvasToBlob,
   downloadBlob,
@@ -168,6 +169,12 @@ export async function exportHighResCompareImage({
     canvas = await renderHighResCanvas(mapB, sceneB, mode, outputWidth);
     suffix = "apres";
     side = "after";
+  } else if (target === "opacity") {
+    if (!sceneA || !sceneB) throw new Error("Scènes non résolues — export haute résolution impossible.");
+    const [canvasA, canvasB] = await Promise.all([renderHighResCanvas(mapA, sceneA, mode, outputWidth), renderHighResCanvas(mapB, sceneB, mode, outputWidth)]);
+    canvas = blendCanvasesAt(canvasA, canvasB);
+    suffix = "opacite";
+    side = "both";
   } else {
     if (!sceneA || !sceneB) throw new Error("Scènes non résolues — export haute résolution impossible.");
     const [canvasA, canvasB] = await Promise.all([renderHighResCanvas(mapA, sceneA, mode, outputWidth), renderHighResCanvas(mapB, sceneB, mode, outputWidth)]);

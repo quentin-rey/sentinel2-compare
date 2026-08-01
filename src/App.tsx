@@ -440,7 +440,7 @@ export default function App() {
 
   function buildExportLabels(target: ExportTarget = "slide"): ExportLabels {
     const modeText = t(RENDER_MODE_TEXT_KEYS[mode]);
-    const showHeader = target === "slide";
+    const showHeader = target === "slide" || target === "opacity";
     return {
       before: { label: showHeader ? t("labelBefore").toUpperCase() : "", value: dateOnly(stripLabelPrefix(compareMaps.labelA.text)) },
       after: { label: showHeader ? t("labelAfter").toUpperCase() : "", value: dateOnly(stripLabelPrefix(compareMaps.labelB.text)) },
@@ -469,7 +469,7 @@ export default function App() {
       ? buildSingleExportBasename()
       : animated
         ? `${buildExportBasename()}_animation`
-        : `${buildExportBasename()}_${exportTarget === "before" ? "avant" : exportTarget === "after" ? "apres" : "comparaison"}`;
+        : `${buildExportBasename()}_${exportTarget === "before" ? "avant" : exportTarget === "after" ? "apres" : exportTarget === "opacity" ? "opacite" : "comparaison"}`;
     return `${base}_${tags.join("_")}.${ext}`;
   }
 
