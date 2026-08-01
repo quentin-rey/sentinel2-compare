@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation, type TFunction } from "../../hooks/useLanguage";
 import type { AnimationStyle } from "../../lib/animatedExport";
 
@@ -71,6 +71,10 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
   const [hold, setHold] = useState(DEFAULT_HOLD_SECONDS);
   const [filename, setFilename] = useState("");
   const [filenameEdited, setFilenameEdited] = useState(false);
+  // See InfoModal for why a mousedown check is needed alongside the click
+  // target check — otherwise dragging a slider past the modal's edge closes
+  // it unintentionally.
+  const mouseDownOnOverlay = useRef(false);
 
   // Reset every field to this export kind's defaults whenever the modal
   // opens for a (possibly new) kind — mirrors the original openExportModal().
@@ -115,8 +119,14 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
     <div
       id="export-modal"
       className="modal-overlay"
+      onMouseDown={(e) => {
+        mouseDownOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onRequestClose();
+        // Checking mousedown too (not just this click's target) keeps
+        // dragging a slider past the modal's edge from being read as a
+        // backdrop click — see InfoModal for the full explanation.
+        if (mouseDownOnOverlay.current && e.target === e.currentTarget) onRequestClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
@@ -161,7 +171,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
             </label>
             <div className="row">
               <label>
-                {t("durationLabel", { seconds: duration })}
+                <span className="row-label-text">{t("durationLabel", { seconds: duration })}</span>
                 <input
                   type="range"
                   min={2}
@@ -172,7 +182,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
                 />
               </label>
               <label>
-                {t("fpsLabel", { fps })}
+                <span className="row-label-text">{t("fpsLabel", { fps })}</span>
                 <input type="range" min={10} max={30} step={1} value={fps} onChange={(e) => setFps(Number(e.target.value))} />
               </label>
             </div>

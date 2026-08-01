@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "../../hooks/useLanguage";
 
 interface Props {
@@ -7,12 +8,21 @@ interface Props {
 
 export function InfoModal({ open, onClose }: Props) {
   const { lang, t } = useTranslation();
+  // Only close on a click that both started and ended directly on the
+  // backdrop — a plain onClick check would also fire after dragging (e.g.
+  // selecting text) that starts inside the modal and releases outside it,
+  // since a mouseup outside the mousedown's element bubbles the click to
+  // their nearest common ancestor, which is this overlay.
+  const mouseDownOnOverlay = useRef(false);
   return (
     <div
       id="info-modal"
       className={`modal-overlay${open ? "" : " hidden"}`}
+      onMouseDown={(e) => {
+        mouseDownOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (mouseDownOnOverlay.current && e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="info-modal-title">
