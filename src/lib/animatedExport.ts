@@ -73,18 +73,19 @@ function getGifWorkerBlobUrl(): Promise<string> {
   return workerBlobUrlPromise;
 }
 
-// Fixed pause at each end of the loop — without it, the sweep/crossfade
-// reverses direction the instant it reaches "before" or "after", which
-// doesn't give the viewer any time to actually look at either side.
-// Expressed as a fraction of the cycle (computed from the chosen duration)
-// so a short loop doesn't end up spending most of its length paused.
-const HOLD_MS = 450;
+// Pause at each end of the loop — without it, the sweep/crossfade reverses
+// direction the instant it reaches "before" or "after", which doesn't give
+// the viewer any time to actually look at either side. User-configurable
+// (see ExportSettingsModal's holdMs slider), defaulting to 450ms. Expressed
+// as a fraction of the cycle (computed from the chosen duration) so a short
+// loop doesn't end up spending most of its length paused.
+const DEFAULT_HOLD_MS = 450;
 
-function holdFractionFor(durationMs: number): number {
+function holdFractionFor(durationMs: number, holdMs: number = DEFAULT_HOLD_MS): number {
   // Capped at 0.4 so each direction's ramp keeps at least 20% of the cycle
   // even at the shortest duration the UI allows (2s) — otherwise a short
   // enough loop could have no discernible transition left at all.
-  return Math.min(0.4, HOLD_MS / durationMs);
+  return Math.min(0.4, holdMs / durationMs);
 }
 
 // A back-and-forth sweep (0 -> 1 -> 0) that loops seamlessly (t=0 and the
@@ -109,11 +110,12 @@ function generateFrames(
   mapB: MapLibreMap,
   frameCount: number,
   durationMs: number,
+  holdMs: number,
   maxWidth: number,
   style: AnimationStyle,
   labels?: ExportLabels,
 ): HTMLCanvasElement[] {
-  const holdFraction = holdFractionFor(durationMs);
+  const holdFraction = holdFractionFor(durationMs, holdMs);
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
     const frame = renderFrame(mapA, mapB, style, i / frameCount, holdFraction, maxWidth);
@@ -129,6 +131,7 @@ interface ExportCompareGifOptions {
   style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
+  holdMs?: number;
   maxWidth?: number;
   quality?: number;
   labels?: ExportLabels;
@@ -150,6 +153,7 @@ export async function exportCompareGif({
   style = "slide",
   durationMs = 2400,
   fps = 17,
+  holdMs = DEFAULT_HOLD_MS,
   maxWidth = 640,
   quality = 0.7,
   labels,
@@ -159,7 +163,7 @@ export async function exportCompareGif({
   const delayMs = Math.round(1000 / fps);
   const gifQuality = Math.max(1, Math.round(31 - quality * 30));
   const [GIFCtor, workerScript] = await Promise.all([loadGifLib(), getGifWorkerBlobUrl()]);
-  const frames = generateFrames(mapA, mapB, frameCount, durationMs, maxWidth, style, labels);
+  const frames = generateFrames(mapA, mapB, frameCount, durationMs, holdMs, maxWidth, style, labels);
 
   return new Promise((resolve, reject) => {
     const gif = new GIFCtor({
@@ -189,6 +193,7 @@ interface ExportCompareWebmOptions {
   style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
+  holdMs?: number;
   maxWidth?: number;
   quality?: number;
   labels?: ExportLabels;
@@ -208,6 +213,7 @@ export async function exportCompareWebm({
   style = "slide",
   durationMs = 3000,
   fps = 24,
+  holdMs = DEFAULT_HOLD_MS,
   maxWidth = 640,
   quality = 0.7,
   labels,
@@ -223,7 +229,7 @@ export async function exportCompareWebm({
     throw new Error("L'enregistrement WebM n'est pas supporté par ce navigateur.");
   }
 
-  const holdFraction = holdFractionFor(durationMs);
+  const holdFraction = holdFractionFor(durationMs, holdMs);
   const first = renderFrame(mapA, mapB, style, 0, holdFraction, maxWidth);
   const canvas = document.createElement("canvas");
   canvas.width = first.width;

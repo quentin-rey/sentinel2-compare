@@ -109,6 +109,7 @@ export interface Translations {
   animStyleOpacity: string;
   durationLabel: (p: { seconds: number }) => string;
   fpsLabel: (p: { fps: number }) => string;
+  holdLabel: (p: { seconds: number }) => string;
   frameCountHint: (p: { frames: number }) => string;
   filenameLabel: string;
   downloadBtn: string;
@@ -256,6 +257,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     animStyleOpacity: "Fondu (opacité)",
     durationLabel: ({ seconds }) => `Durée du cycle avant ↔ après (${seconds}s)`,
     fpsLabel: ({ fps }) => `Fluidité (${fps} im/s)`,
+    holdLabel: ({ seconds }) => `Pause à chaque extrémité (${seconds}s)`,
     frameCountHint: ({ frames }) =>
       `≈ ${frames} images générées. Plus de durée/fluidité = un rendu plus doux mais un fichier plus lourd et plus long à générer.`,
     filenameLabel: "Nom du fichier",
@@ -400,6 +402,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     animStyleOpacity: "Fade (opacity)",
     durationLabel: ({ seconds }) => `Before ↔ after cycle duration (${seconds}s)`,
     fpsLabel: ({ fps }) => `Smoothness (${fps} fps)`,
+    holdLabel: ({ seconds }) => `Pause at each end (${seconds}s)`,
     frameCountHint: ({ frames }) =>
       `≈ ${frames} frames generated. More duration/smoothness = a smoother render but a heavier, slower-to-generate file.`,
     filenameLabel: "Filename",
