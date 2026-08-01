@@ -1,5 +1,11 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { compositeCanvas, drawOverlayLabels, type ExportLabels } from "./exportImage";
+import { compositeCanvas, blendCanvas, drawOverlayLabels, type ExportLabels } from "./exportImage";
+
+// "slide" (default): the same before/after sweep the on-screen comparison
+// slider makes. "opacity": crossfades between the two dates instead —
+// changed areas fade smoothly rather than being revealed by a moving edge
+// (issue #23).
+export type AnimationStyle = "slide" | "opacity";
 
 // gif.js (https://github.com/jnordberg/gif.js) is a UMD/global-based library
 // with a separate Web Worker file for encoding. Loaded lazily (only if the
@@ -73,17 +79,22 @@ function triangleWave(t: number): number {
   return t < 0.5 ? t * 2 : (1 - t) * 2;
 }
 
+function renderFrame(mapA: MapLibreMap, mapB: MapLibreMap, style: AnimationStyle, t: number, maxWidth: number): HTMLCanvasElement {
+  const wave = triangleWave(t);
+  return style === "opacity" ? blendCanvas(mapA, mapB, wave, maxWidth) : compositeCanvas(mapA, mapB, wave, maxWidth);
+}
+
 function generateFrames(
   mapA: MapLibreMap,
   mapB: MapLibreMap,
   frameCount: number,
   maxWidth: number,
+  style: AnimationStyle,
   labels?: ExportLabels,
 ): HTMLCanvasElement[] {
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
-    const t = i / frameCount;
-    const frame = compositeCanvas(mapA, mapB, triangleWave(t), maxWidth);
+    const frame = renderFrame(mapA, mapB, style, i / frameCount, maxWidth);
     if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
     frames.push(frame);
   }
@@ -93,6 +104,7 @@ function generateFrames(
 interface ExportCompareGifOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
+  style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
   maxWidth?: number;
@@ -102,7 +114,8 @@ interface ExportCompareGifOptions {
 }
 
 /**
- * Renders a looping before/after sweep as an animated GIF, entirely in the
+ * Renders a looping before/after sweep (or, with `style: "opacity"`, a
+ * crossfade — see AnimationStyle) as an animated GIF, entirely in the
  * browser (encoding runs in a Web Worker). Returns a Blob (image/gif).
  *
  * `quality` is a 0-1 fraction (higher = better/heavier), matching the JPEG
@@ -112,6 +125,7 @@ interface ExportCompareGifOptions {
 export async function exportCompareGif({
   mapA,
   mapB,
+  style = "slide",
   durationMs = 2400,
   fps = 17,
   maxWidth = 640,
@@ -123,7 +137,7 @@ export async function exportCompareGif({
   const delayMs = Math.round(1000 / fps);
   const gifQuality = Math.max(1, Math.round(31 - quality * 30));
   const [GIFCtor, workerScript] = await Promise.all([loadGifLib(), getGifWorkerBlobUrl()]);
-  const frames = generateFrames(mapA, mapB, frameCount, maxWidth, labels);
+  const frames = generateFrames(mapA, mapB, frameCount, maxWidth, style, labels);
 
   return new Promise((resolve, reject) => {
     const gif = new GIFCtor({
@@ -150,6 +164,7 @@ export async function exportCompareGif({
 interface ExportCompareWebmOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
+  style?: AnimationStyle;
   durationMs?: number;
   fps?: number;
   maxWidth?: number;
@@ -159,7 +174,8 @@ interface ExportCompareWebmOptions {
 }
 
 /**
- * Records a looping before/after sweep as a short WebM video using the
+ * Records a looping before/after sweep (or, with `style: "opacity"`, a
+ * crossfade — see AnimationStyle) as a short WebM video using the
  * MediaRecorder API (a canvas is redrawn in real time and captured via
  * `canvas.captureStream()`). Returns a Blob (video/webm), or throws if the
  * browser doesn't support WebM recording (notably some Safari versions).
@@ -167,6 +183,7 @@ interface ExportCompareWebmOptions {
 export async function exportCompareWebm({
   mapA,
   mapB,
+  style = "slide",
   durationMs = 3000,
   fps = 24,
   maxWidth = 640,
@@ -184,7 +201,7 @@ export async function exportCompareWebm({
     throw new Error("L'enregistrement WebM n'est pas supporté par ce navigateur.");
   }
 
-  const first = compositeCanvas(mapA, mapB, 0.5, maxWidth);
+  const first = renderFrame(mapA, mapB, style, 0.25, maxWidth);
   const canvas = document.createElement("canvas");
   canvas.width = first.width;
   canvas.height = first.height;
@@ -210,7 +227,7 @@ export async function exportCompareWebm({
     function step(now: number) {
       const elapsed = now - start;
       const t = (elapsed % durationMs) / durationMs;
-      const frame = compositeCanvas(mapA, mapB, triangleWave(t), maxWidth);
+      const frame = renderFrame(mapA, mapB, style, t, maxWidth);
       if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0);

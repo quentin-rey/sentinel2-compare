@@ -14,7 +14,7 @@ import type { PlaceResult } from "./lib/geocode";
 import { exportCompareImage, exportSingleImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
 import { exportHighResCompareImage, exportHighResSingleImage } from "./lib/exportHighRes";
 import type { SceneAssets } from "./lib/cogRaster";
-import { exportCompareGif, exportCompareWebm } from "./lib/animatedExport";
+import { exportCompareGif, exportCompareWebm, type AnimationStyle } from "./lib/animatedExport";
 import { slug, stripLabelPrefix, dateOnly } from "./utils/format";
 import { CompareView } from "./components/CompareView";
 import { Navbar } from "./components/Navbar";
@@ -459,12 +459,12 @@ export default function App() {
     };
   }
 
-  function computeExportFilename(kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number): string {
+  function computeExportFilename(kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number, animationStyle: AnimationStyle): string {
     const ext = kind === "jpeg" ? "jpg" : kind;
     const animated = kind === "gif" || kind === "webm";
     const tags = [maxWidth ? `${maxWidth}px` : "orig"];
     if (kind === "jpeg" || kind === "gif") tags.push(`q${Math.round(quality)}`);
-    if (animated) tags.push(`${duration}s`, `${fps}fps`);
+    if (animated) tags.push(animationStyle === "opacity" ? "fondu" : "slide", `${duration}s`, `${fps}fps`);
     const base = !compareMaps.isComparing
       ? buildSingleExportBasename()
       : animated
@@ -628,10 +628,11 @@ export default function App() {
         setProgressText(t("generating", { label, percent }));
         setProgressPercent(percent);
       };
+      const style = options.animationStyle ?? "slide";
       const blob =
         kind === "gif"
-          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
-          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
+          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
+          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
       downloadBlob(blob, options.filename);
       showToast(t("animExportSuccess", { label }));
     } catch (err) {

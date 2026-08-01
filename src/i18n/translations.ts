@@ -104,6 +104,9 @@ export interface Translations {
   sizeStandard: (p: { px: number }) => string;
   sizeHighRes: (p: { px: number }) => string;
   qualityLabel: (p: { percent: number }) => string;
+  animStyleLabel: string;
+  animStyleSlide: string;
+  animStyleOpacity: string;
   durationLabel: (p: { seconds: number }) => string;
   fpsLabel: (p: { fps: number }) => string;
   frameCountHint: (p: { frames: number }) => string;
@@ -248,6 +251,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     sizeStandard: ({ px }) => `Standard (${px} px)`,
     sizeHighRes: ({ px }) => `Haute résolution (${px} px, données satellite directes)`,
     qualityLabel: ({ percent }) => `Qualité (${percent}%)`,
+    animStyleLabel: "Style d'animation",
+    animStyleSlide: "Slide",
+    animStyleOpacity: "Fondu (opacité)",
     durationLabel: ({ seconds }) => `Durée du cycle avant ↔ après (${seconds}s)`,
     fpsLabel: ({ fps }) => `Fluidité (${fps} im/s)`,
     frameCountHint: ({ frames }) =>
@@ -389,6 +395,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     sizeStandard: ({ px }) => `Standard (${px} px)`,
     sizeHighRes: ({ px }) => `High resolution (${px} px, direct from satellite data)`,
     qualityLabel: ({ percent }) => `Quality (${percent}%)`,
+    animStyleLabel: "Animation style",
+    animStyleSlide: "Slide",
+    animStyleOpacity: "Fade (opacity)",
     durationLabel: ({ seconds }) => `Before ↔ after cycle duration (${seconds}s)`,
     fpsLabel: ({ fps }) => `Smoothness (${fps} fps)`,
     frameCountHint: ({ frames }) =>
