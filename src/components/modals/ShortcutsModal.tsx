@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "../../hooks/useLanguage";
 
 interface Props {
@@ -7,12 +8,19 @@ interface Props {
 
 export function ShortcutsModal({ open, onClose }: Props) {
   const { t } = useTranslation();
+  // See InfoModal for why a mousedown check is needed alongside the click
+  // target check — otherwise a drag that starts inside the modal and
+  // releases on the backdrop closes it unintentionally.
+  const mouseDownOnOverlay = useRef(false);
   return (
     <div
       id="shortcuts-modal"
       className={`modal-overlay${open ? "" : " hidden"}`}
+      onMouseDown={(e) => {
+        mouseDownOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+        if (mouseDownOnOverlay.current && e.target === e.currentTarget) onClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="shortcuts-modal-title">

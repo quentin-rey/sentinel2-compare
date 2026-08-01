@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "../../hooks/useLanguage";
 
 interface Props {
@@ -13,12 +14,19 @@ interface Props {
 // plain DOM element has no such native-dialog/keyboard interaction quirk.
 export function ExportDiscardConfirmModal({ open, onCancel, onConfirm }: Props) {
   const { t } = useTranslation();
+  // See InfoModal for why a mousedown check is needed alongside the click
+  // target check — otherwise a drag that starts inside the modal and
+  // releases on the backdrop closes it unintentionally.
+  const mouseDownOnOverlay = useRef(false);
   return (
     <div
       id="export-discard-modal"
       className={`modal-overlay${open ? "" : " hidden"}`}
+      onMouseDown={(e) => {
+        mouseDownOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onCancel();
+        if (mouseDownOnOverlay.current && e.target === e.currentTarget) onCancel();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-discard-title">

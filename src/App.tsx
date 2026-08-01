@@ -631,8 +631,8 @@ export default function App() {
       const style = options.animationStyle ?? "slide";
       const blob =
         kind === "gif"
-          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
-          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
+          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
+          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
       downloadBlob(blob, options.filename);
       showToast(t("animExportSuccess", { label }));
     } catch (err) {

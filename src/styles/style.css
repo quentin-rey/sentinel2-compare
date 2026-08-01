@@ -781,6 +781,15 @@ html, body {
   min-width: 0;
 }
 
+/* Reserves 2 lines of text (this modal's font-size 13px * line-height 1.5)
+   so a row's sliders stay aligned even when only one sibling label's text
+   wraps to a second line (e.g. "Durée du cycle avant <-> après" vs.
+   "Fluidité") — without this the shorter label's input sits higher. */
+.modal .row label > .row-label-text {
+  display: block;
+  min-height: 3em;
+}
+
 #export-modal-confirm {
   width: 100%;
   padding: 8px;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation, type TFunction } from "../../hooks/useLanguage";
 import type { AnimationStyle } from "../../lib/animatedExport";
 
@@ -34,6 +34,9 @@ export interface ExportConfirmOptions {
   filename: string;
   durationMs?: number;
   fps?: number;
+  // GIF/WebM only — pause (ms) held at each end of the before/after loop,
+  // see lib/animatedExport.ts's holdMs.
+  holdMs?: number;
   // Render fresh from the satellite data at maxWidth instead of capturing
   // the on-screen canvas — see lib/exportHighRes.ts.
   highRes?: boolean;
@@ -54,6 +57,9 @@ function isAnimatedKind(kind: ExportKind | null): boolean {
   return kind === "gif" || kind === "webm";
 }
 
+// Mirrors lib/animatedExport.ts's DEFAULT_HOLD_MS.
+const DEFAULT_HOLD_SECONDS = 0.45;
+
 export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onDirectClose, onConfirm }: Props) {
   const { t } = useTranslation();
   const animated = isAnimatedKind(kind);
@@ -62,8 +68,13 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
   const [duration, setDuration] = useState(3);
   const [fps, setFps] = useState(20);
   const [animStyle, setAnimStyle] = useState<AnimationStyle>("slide");
+  const [hold, setHold] = useState(DEFAULT_HOLD_SECONDS);
   const [filename, setFilename] = useState("");
   const [filenameEdited, setFilenameEdited] = useState(false);
+  // See InfoModal for why a mousedown check is needed alongside the click
+  // target check — otherwise dragging a slider past the modal's edge closes
+  // it unintentionally.
+  const mouseDownOnOverlay = useRef(false);
 
   // Reset every field to this export kind's defaults whenever the modal
   // opens for a (possibly new) kind — mirrors the original openExportModal().
@@ -77,6 +88,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
     setDuration(defaultDuration);
     setFps(defaultFps);
     setAnimStyle("slide");
+    setHold(DEFAULT_HOLD_SECONDS);
     setFilenameEdited(false);
     setFilename(computeFilename(kind, defaultSize, 85, defaultDuration, defaultFps, "slide"));
     // computeFilename intentionally excluded: it closes over live app state
@@ -107,8 +119,14 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
     <div
       id="export-modal"
       className="modal-overlay"
+      onMouseDown={(e) => {
+        mouseDownOnOverlay.current = e.target === e.currentTarget;
+      }}
       onClick={(e) => {
-        if (e.target === e.currentTarget) onRequestClose();
+        // Checking mousedown too (not just this click's target) keeps
+        // dragging a slider past the modal's edge from being read as a
+        // backdrop click — see InfoModal for the full explanation.
+        if (mouseDownOnOverlay.current && e.target === e.currentTarget) onRequestClose();
       }}
     >
       <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-modal-title">
@@ -153,7 +171,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
             </label>
             <div className="row">
               <label>
-                {t("durationLabel", { seconds: duration })}
+                <span className="row-label-text">{t("durationLabel", { seconds: duration })}</span>
                 <input
                   type="range"
                   min={2}
@@ -164,10 +182,14 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
                 />
               </label>
               <label>
-                {t("fpsLabel", { fps })}
+                <span className="row-label-text">{t("fpsLabel", { fps })}</span>
                 <input type="range" min={10} max={30} step={1} value={fps} onChange={(e) => setFps(Number(e.target.value))} />
               </label>
             </div>
+            <label>
+              {t("holdLabel", { seconds: hold })}
+              <input type="range" min={0} max={2} step={0.1} value={hold} onChange={(e) => setHold(Number(e.target.value))} />
+            </label>
             <p className="field-hint">{t("frameCountHint", { frames: frameCount })}</p>
           </>
         )}
@@ -196,6 +218,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
               filename: finalFilename,
               durationMs: animated ? duration * 1000 : undefined,
               fps: animated ? fps : undefined,
+              holdMs: animated ? hold * 1000 : undefined,
               highRes,
               animationStyle: animated ? animStyle : undefined,
             });
