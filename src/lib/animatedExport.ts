@@ -1,5 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { compositeCanvas, blendCanvas, drawOverlayLabels, type ExportLabels } from "./exportImage";
+import { compositeCanvas, blendCanvas, drawOverlayLabels, drawWatermark, type ExportLabels } from "./exportImage";
 
 // "slide" (default): the same before/after sweep the on-screen comparison
 // slider makes. "opacity": crossfades between the two dates instead —
@@ -100,7 +100,8 @@ function waveWithHold(t: number, holdFraction: number): number {
 
 function renderFrame(mapA: MapLibreMap, mapB: MapLibreMap, style: AnimationStyle, t: number, holdFraction: number, maxWidth: number): HTMLCanvasElement {
   const wave = waveWithHold(t, holdFraction);
-  return style === "opacity" ? blendCanvas(mapA, mapB, wave, maxWidth) : compositeCanvas(mapA, mapB, wave, maxWidth);
+  const frame = style === "opacity" ? blendCanvas(mapA, mapB, wave, maxWidth) : compositeCanvas(mapA, mapB, wave, maxWidth);
+  return drawWatermark(frame);
 }
 
 function generateFrames(

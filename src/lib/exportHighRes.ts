@@ -16,6 +16,7 @@ import type { CogRegionRequest, CogTileResponse } from "../workers/cogTile.worke
 import {
   compositeCanvasesAt,
   drawOverlayLabels,
+  drawWatermark,
   canvasToBlob,
   downloadBlob,
   type ExportFormat,
@@ -115,6 +116,7 @@ export async function exportHighResSingleImage({
   const mime = format === "jpeg" ? "image/jpeg" : "image/png";
   const ext = format === "jpeg" ? "jpg" : "png";
   const canvas = await renderHighResCanvas(map, scene, mode, outputWidth);
+  drawWatermark(canvas);
   if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
   const blob = await canvasToBlob(canvas, mime, quality);
   downloadBlob(blob, filename || `sentinel2-image-hd.${ext}`);
@@ -176,6 +178,7 @@ export async function exportHighResCompareImage({
     side = "both";
   }
 
+  drawWatermark(canvas);
   if (labels) drawOverlayLabels(canvas, { ...labels, side });
 
   const blob = await canvasToBlob(canvas, mime, quality);
