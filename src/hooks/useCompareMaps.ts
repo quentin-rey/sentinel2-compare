@@ -468,6 +468,17 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     instancesRef.current.swipe?.setPosition(0.5);
   }, []);
 
+  // Zooming mapA alone is enough — the swipe control's "move" sync (see
+  // lib/swipe.ts) mirrors the new camera onto mapB right away, whichever
+  // side is actually visible.
+  const zoomIn = useCallback(() => {
+    instancesRef.current.mapA?.zoomIn();
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    instancesRef.current.mapA?.zoomOut();
+  }, []);
+
   return {
     mapAContainerRef,
     mapBContainerRef,
@@ -491,6 +502,8 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     changeMode,
     pickManualDate,
     resetSlider,
+    zoomIn,
+    zoomOut,
   };
 }
 

@@ -33,6 +33,8 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
     renderStateB,
     pickManualDate,
     resetSlider,
+    zoomIn,
+    zoomOut,
   } = compare;
 
   const totalTilesA = renderStateA?.info.found ? renderStateA.info.tileCount : 1;
@@ -62,6 +64,29 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
         onDoubleClick={resetSlider}
         className={isComparing ? "" : "hidden"}
       />
+      {/* A real maplibregl.NavigationControl added to mapA/mapB individually
+          ends up hidden or fighting for clicks with the other side — mapB's
+          canvas paints over mapA's right half while comparing (the clip-path
+          on .compare-map-wrap), but that same clip-path also traps mapB's
+          own control in a separate local stacking context, so mapA's control
+          escapes on top of it instead. Reusing maplibre-gl.css's own
+          `.maplibregl-ctrl-*` classes (not scoped to any one map's DOM) on a
+          single control living directly in #compare sidesteps all of that —
+          one control, positioned like maplibre's own, driving mapA's camera
+          (zoomIn/zoomOut in useCompareMaps.ts), which the swipe control's
+          camera sync then mirrors onto mapB. */}
+      {isOpen && (
+        <div className="maplibregl-ctrl-top-right">
+          <div className="maplibregl-ctrl maplibregl-ctrl-group">
+            <button type="button" className="maplibregl-ctrl-zoom-in" title={t("zoomInAriaLabel")} aria-label={t("zoomInAriaLabel")} onClick={zoomIn}>
+              <span className="maplibregl-ctrl-icon" aria-hidden="true" />
+            </button>
+            <button type="button" className="maplibregl-ctrl-zoom-out" title={t("zoomOutAriaLabel")} aria-label={t("zoomOutAriaLabel")} onClick={zoomOut}>
+              <span className="maplibregl-ctrl-icon" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
       <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
         <span className="banner-spinner" />
         {t("loadingExactDatesBanner")}
