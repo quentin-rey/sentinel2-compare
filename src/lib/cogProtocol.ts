@@ -37,6 +37,24 @@ export function cogTileUrl(sceneKey: string, mode: RenderMode, lane: TileLane): 
 // as the first. Splitting by lane guarantees the two sides never compete
 // for the same workers; single-image mode just leaves lane B idle.
 const LANE_POOL_SIZE = Math.min(4, Math.max(2, Math.floor(((typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 4) / 2)));
+
+// Every tile is rendered client-side at a fixed pixel size (see
+// cogRaster.ts's readBandWindow/pickOverview, which pick a source COG
+// overview level to match it) — on a high-DPI screen (most phones, retina
+// laptops) the WebGL canvas has 2-3x as many physical pixels as CSS pixels,
+// so a plain 256x256 tile gets stretched across that and looks soft, only
+// sharpening once the user zooms in far enough that each tile covers a
+// small enough ground area for pickOverview's GSD matching to compensate on
+// its own (issue #21). Rendering at devicePixelRatio resolution instead —
+// the same "@2x tile" technique ordinary raster basemaps use — fixes that
+// directly, without changing which {z,x,y} tiles get requested (MapLibre's
+// raster source still thinks each tile is 256 "world units"; it just
+// receives a higher-resolution image for it). Capped at 2x since COG data
+// read/decoded per tile scales with the square of this factor, and most of
+// the visible sharpening is already there by 2x.
+const TILE_BASE_SIZE = 256;
+const TILE_PIXEL_RATIO = Math.min(typeof window !== "undefined" ? window.devicePixelRatio || 1 : 1, 2);
+const TILE_OUTPUT_SIZE = Math.round(TILE_BASE_SIZE * TILE_PIXEL_RATIO);
 const lanePools: Record<TileLane, Worker[]> = { a: [], b: [] };
 const nextWorker: Record<TileLane, number> = { a: 0, b: 0 };
 let nextRequestId = 0;
@@ -107,7 +125,7 @@ export function registerCogProtocol(): void {
         },
       });
 
-      const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y };
+      const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y, tileSize: TILE_OUTPUT_SIZE };
       worker.postMessage(request);
     });
   });
