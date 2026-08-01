@@ -81,6 +81,7 @@ interface BandWindow {
 const windowCache = new Map<string, Promise<BandWindow>>();
 const WINDOW_CACHE_LIMIT = 300;
 const SNAP = 256;
+const MIN_WINDOW = 16;
 
 // All bands of one Sentinel-2 scene share the same footprint (co-registered
 // to the same grid), so the first band's bbox stands in for the whole
@@ -144,30 +145,66 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
   top = Math.max(0, Math.min(h - 1, top));
   bottom = Math.max(top + 1, Math.min(h, bottom));
 
-  const cacheKey = `${href}|${index}|${left}|${top}|${right}|${bottom}`;
+  // A tile tangent to the scene's true edge can clamp down to a read window
+  // just 1 source pixel wide/tall — geotiff.js's decoder has been observed
+  // to throw a pako "buffer error" on windows that thin (see the catch
+  // below). Padding back out to a safe minimum size — symmetrically, still
+  // clamped to the image bounds — avoids the degenerate window in the first
+  // place instead of just handling the failure after the fact.
+  if (right - left < MIN_WINDOW) {
+    right = Math.min(w, left + MIN_WINDOW);
+    left = Math.max(0, right - MIN_WINDOW);
+  }
+  if (bottom - top < MIN_WINDOW) {
+    bottom = Math.min(h, top + MIN_WINDOW);
+    top = Math.max(0, bottom - MIN_WINDOW);
+  }
+
+  const imageKey = `${href}|${index}`;
+  const cacheKey = `${imageKey}|${left}|${top}|${right}|${bottom}`;
   let cached = windowCache.get(cacheKey);
   if (!cached) {
-    cached = (async () => {
-      const windowBboxUtm: [number, number, number, number] = [
-        bLeft + left / pxPerMx,
-        bTop - bottom / pxPerMy,
-        bLeft + right / pxPerMx,
-        bTop - top / pxPerMy,
-      ];
+    // Reading a window flush against one of an overview's own edges has
+    // been observed to throw a pako "buffer error" — traced to windows
+    // overlapping the last (partial, since Sentinel-2 overview dimensions
+    // are rarely a multiple of the source COG's internal tile size) row/
+    // column of internal TIFF tiles, which some geotiff.js decode paths
+    // mishandle (issue #22: a whole XYZ tile going blank because just one
+    // band's window happened to land there). Retrying once with the window
+    // inset a bit on every side recovers everything but a thin sliver right
+    // at the true edge, instead of losing the entire tile to a single
+    // failed band read.
+    const RETRY_INSET = 32;
+    const attemptRead = async (l: number, t: number, r: number, b: number, retriesLeft: number): Promise<BandWindow> => {
+      const windowBboxUtm: [number, number, number, number] = [bLeft + l / pxPerMx, bTop - b / pxPerMy, bLeft + r / pxPerMx, bTop - t / pxPerMy];
       try {
-        const [data] = await img.readRasters({ window: [left, top, right, bottom], fillValue: 0 });
-        return { data: data as unknown as ArrayLike<number>, width: right - left, height: bottom - top, bboxUtm: windowBboxUtm };
+        const [data] = await img.readRasters({ window: [l, t, r, b], fillValue: 0 });
+        return { data: data as unknown as ArrayLike<number>, width: r - l, height: b - t, bboxUtm: windowBboxUtm };
       } catch (err) {
-        // Fail safe rather than fail the whole tile — an occasional corrupt
-        // read (observed for near-edge windows) degrades to "no data" for
-        // just this band/window instead of leaving the tile permanently
-        // blank/erroring.
+        const mid = Math.floor((l + r) / 2);
+        const midV = Math.floor((t + b) / 2);
+        const shrunkLeft = Math.min(l + RETRY_INSET, mid);
+        const shrunkTop = Math.min(t + RETRY_INSET, midV);
+        const shrunkRight = Math.max(r - RETRY_INSET, mid + 1);
+        const shrunkBottom = Math.max(b - RETRY_INSET, midV + 1);
+        if (retriesLeft > 0 && (shrunkLeft > l || shrunkTop > t || shrunkRight < r || shrunkBottom < b)) {
+          return attemptRead(shrunkLeft, shrunkTop, shrunkRight, shrunkBottom, retriesLeft - 1);
+        }
+        // Fail safe rather than fail the whole tile — a read that still
+        // fails after retrying degrades to "no data" for just this band/
+        // window instead of leaving the tile permanently blank/erroring.
         console.warn("Lecture de fenêtre COG échouée, traitée comme absente:", href, err);
+        // Don't let what's presumably a transient decode hiccup permanently
+        // blank this window for the rest of the session — only requests
+        // already awaiting *this* promise see the degraded fallback; a
+        // later, separate request for the same window gets to retry.
+        windowCache.delete(cacheKey);
         // width/height 0 makes every pixel's bounds check fail below, i.e.
         // this band reads as nodata everywhere for this tile.
         return { data: new Uint16Array(0), width: 0, height: 0, bboxUtm: windowBboxUtm };
       }
-    })();
+    };
+    cached = attemptRead(left, top, right, bottom, 1);
     if (windowCache.size >= WINDOW_CACHE_LIMIT) {
       const oldest = windowCache.keys().next().value;
       if (oldest !== undefined) windowCache.delete(oldest);
