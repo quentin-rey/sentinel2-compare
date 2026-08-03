@@ -214,6 +214,37 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
   return cached;
 }
 
+// Bilinear interpolation for a single band's already-read window, sampled
+// at continuous source-pixel coordinates (issue #36: plain nearest-neighbor
+// left tile/export renders visibly softer than Copernicus Browser's, since
+// most output pixels land at a fractional position between source samples).
+// Falls back to a plain nearest-neighbor read if any of the 4 surrounding
+// samples is out of the window or nodata (0) — blending a real DN with 0
+// would fade genuine pixels toward black right at scene/cloud edges, so
+// those few pixels just keep today's crisper-but-blockier edge instead.
+function sampleBilinear(win: BandWindow, wxf: number, wyf: number): number {
+  const bx = wxf - 0.5;
+  const by = wyf - 0.5;
+  const x0 = Math.floor(bx);
+  const y0 = Math.floor(by);
+  const fx = bx - x0;
+  const fy = by - y0;
+
+  const at = (x: number, y: number): number => (x < 0 || x >= win.width || y < 0 || y >= win.height ? 0 : win.data[y * win.width + x]);
+
+  const v00 = at(x0, y0);
+  const v10 = at(x0 + 1, y0);
+  const v01 = at(x0, y0 + 1);
+  const v11 = at(x0 + 1, y0 + 1);
+  if (v00 === 0 || v10 === 0 || v01 === 0 || v11 === 0) {
+    return at(Math.floor(wxf), Math.floor(wyf));
+  }
+
+  const top = v00 * (1 - fx) + v10 * fx;
+  const bottom = v01 * (1 - fx) + v11 * fx;
+  return top * (1 - fy) + bottom * fy;
+}
+
 // Core renderer: samples `scene`'s bands over an arbitrary Web Mercator
 // bbox (meters, same convention as tileBoundsMeters) at an arbitrary output
 // resolution. renderTileRGBA (the MapLibre protocol's per-XYZ-tile path)
@@ -275,20 +306,25 @@ export async function renderRegionRGBA(
       for (const key of bandKeys) {
         const win = windows[key];
         const [wl, wb, wr, wt] = win.bboxUtm;
-        const wx = Math.floor(((ux - wl) / (wr - wl)) * win.width);
-        const wy = Math.floor(((wt - uy) / (wt - wb)) * win.height);
+        const wxf = ((ux - wl) / (wr - wl)) * win.width;
+        const wyf = ((wt - uy) / (wt - wb)) * win.height;
+        const wx = Math.floor(wxf);
+        const wy = Math.floor(wyf);
         if (wx < 0 || wx >= win.width || wy < 0 || wy >= win.height) {
           nodata = true;
           break;
         }
-        const dn = win.data[wy * win.width + wx];
+        // SCL (Scene Classification Layer) is a discrete class code
+        // (0-11), not a reflectance DN — interpolating it would produce
+        // meaningless fractional "classes" the cloud-class Set lookup in
+        // fire() would never match, so it always stays nearest-neighbor.
+        // Every other band scales by /10000 to get calibrated reflectance,
+        // and is bilinearly interpolated (issue #36) for a sharper render.
+        const dn = key === "scl" ? win.data[wy * win.width + wx] : sampleBilinear(win, wxf, wyf);
         if (dn === 0) {
           nodata = true;
           break;
         }
-        // SCL (Scene Classification Layer) is a discrete class code
-        // (0-11), not a reflectance DN — every other band scales by
-        // /10000 to get calibrated reflectance, SCL passes through as-is.
         bandsRaw[key] = key === "scl" ? dn : dn / 10000;
       }
       if (nodata) {
