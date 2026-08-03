@@ -258,6 +258,111 @@ export function drawOverlayLabels(
   return canvas;
 }
 
+export interface ExportScaleInfo {
+  // Real-world meters per CSS pixel of the *source* map view (see
+  // computeMetersPerCssPixel) — not yet adjusted for this specific export
+  // canvas's own (possibly downscaled or independently-sized, for the
+  // direct-COG high-res path) width.
+  metersPerCssPixel: number;
+  // CSS width (in px) of the map container the above was measured against.
+  cssWidth: number;
+}
+
+/**
+ * Mirrors MapLibre's own ScaleControl technique — unprojects two points a
+ * fixed CSS-pixel distance apart at the container's vertical center and
+ * measures the real-world distance between them (LngLat#distanceTo, a
+ * haversine great-circle distance) — rather than a closed-form Web Mercator
+ * formula, so it stays accurate under tilt/rotation too.
+ */
+export function computeMetersPerCssPixel(map: MapLibreMap): number {
+  const container = map.getContainer();
+  const y = container.clientHeight / 2;
+  const cx = container.clientWidth / 2;
+  const left = map.unproject([cx - 50, y]);
+  const right = map.unproject([cx + 50, y]);
+  return left.distanceTo(right) / 100;
+}
+
+// Mirrors MapLibre's own ScaleControl rounding (scale_control.ts's
+// getRoundNum) exactly, so a given view's export always shows the same
+// distance as its live on-screen scale bar — not just a plausible-looking
+// one. An earlier version used a different pixel budget and a coarser
+// 1/2/5 rounding set, which could disagree with the live control (e.g.
+// 500m live vs. 1km export for the same view).
+function getRoundNum(num: number): number {
+  const pow10 = Math.pow(10, String(Math.floor(num)).length - 1);
+  const d = num / pow10;
+  const nice = d >= 10 ? 10 : d >= 5 ? 5 : d >= 3 ? 3 : d >= 2 ? 2 : 1;
+  return pow10 * nice;
+}
+
+function formatScaleDistance(meters: number): string {
+  if (meters < 1000) return `${meters} m`;
+  const km = meters / 1000;
+  return `${km % 1 === 0 ? km : km.toFixed(1)} km`;
+}
+
+/**
+ * Burns a cartographic scale bar into the top-right corner of an exported
+ * canvas (issue #35) — the top-left is already taken by drawWatermark, and
+ * the bottom row by drawOverlayLabels' readouts. `info` describes the
+ * source map view; the actual meters-per-pixel of this canvas is derived
+ * from its own width, which may differ (downscaled capture, or an
+ * independently-sized direct-COG high-res render).
+ */
+export function drawScaleBar(canvas: HTMLCanvasElement, { metersPerCssPixel, cssWidth }: ExportScaleInfo): HTMLCanvasElement {
+  const metersPerPixel = (metersPerCssPixel * cssWidth) / canvas.width;
+  if (!Number.isFinite(metersPerPixel) || metersPerPixel <= 0) return canvas;
+
+  const ctx = canvas.getContext("2d")!;
+  const { width } = canvas;
+  const margin = Math.max(8, Math.round(width / 80));
+  const fontSize = clampFont(width / 75, 10, 15);
+  // Same 100px reference MapLibre's ScaleControl uses (its default
+  // maxWidth) — measured in *source* CSS pixels so the rounded distance
+  // comes out identical to the live control, whatever this canvas's own
+  // resolution is. The bar is then drawn at that distance's actual pixel
+  // length on this canvas, which naturally stays a sane fraction of its
+  // width (equivalent to ~100 CSS px scaled by the same ratio as the rest
+  // of the image), even though it's rarely exactly 100px.
+  const niceDistance = getRoundNum(100 * metersPerCssPixel);
+  const barWidth = niceDistance / metersPerPixel;
+  const label = formatScaleDistance(niceDistance);
+
+  const paddingX = Math.round(fontSize * 0.55);
+  const paddingY = Math.round(fontSize * 0.4);
+  const barGap = Math.round(fontSize * 0.3);
+  const barHeight = 3;
+  const boxWidth = Math.max(barWidth, ctx.measureText(label).width) + paddingX * 2;
+  const boxHeight = paddingY * 2 + fontSize + barGap + barHeight;
+  const boxX = width - margin - boxWidth;
+  const boxY = margin;
+
+  ctx.font = `600 ${fontSize}px ${MONO_FONT}`;
+  ctx.fillStyle = "rgba(12,12,14,0.72)";
+  ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+  ctx.textBaseline = "top";
+  ctx.fillStyle = "#fff";
+  ctx.fillText(label, boxX + paddingX, boxY + paddingY);
+
+  const barY = boxY + paddingY + fontSize + barGap + barHeight / 2;
+  const barX = boxX + paddingX;
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(barX, barY);
+  ctx.lineTo(barX + barWidth, barY);
+  ctx.moveTo(barX, barY - barHeight / 2);
+  ctx.lineTo(barX, barY + barHeight / 2);
+  ctx.moveTo(barX + barWidth, barY - barHeight / 2);
+  ctx.lineTo(barX + barWidth, barY + barHeight / 2);
+  ctx.stroke();
+
+  return canvas;
+}
+
 const WATERMARK_TEXT = "Sentinel-2 Compare";
 
 /**
@@ -288,6 +393,7 @@ interface ExportSingleImageOptions {
   format?: ExportFormat;
   filename?: string;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   maxWidth?: number;
   quality?: number;
 }
@@ -299,11 +405,12 @@ interface ExportSingleImageOptions {
  * drawOverlayLabels is called with side "before" so its label text is
  * dropped as redundant, same as a single-side compare export.
  */
-export async function exportSingleImage({ map, format = "png", filename, labels, maxWidth, quality = 0.92 }: ExportSingleImageOptions): Promise<void> {
+export async function exportSingleImage({ map, format = "png", filename, labels, scale, maxWidth, quality = 0.92 }: ExportSingleImageOptions): Promise<void> {
   const mime = format === "jpeg" ? "image/jpeg" : "image/png";
   const ext = format === "jpeg" ? "jpg" : "png";
   const canvas = copyToCanvas2d(map.getCanvas(), maxWidth);
   drawWatermark(canvas);
+  if (scale) drawScaleBar(canvas, scale);
   if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
   const blob = await canvasToBlob(canvas, mime, quality);
   downloadBlob(blob, filename || `sentinel2-image.${ext}`);
@@ -317,6 +424,7 @@ interface ExportCompareImageOptions {
   target?: ExportTarget;
   filename?: string;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   maxWidth?: number;
   quality?: number;
 }
@@ -337,6 +445,7 @@ export async function exportCompareImage({
   target = "slide",
   filename,
   labels,
+  scale,
   maxWidth,
   quality = 0.92,
 }: ExportCompareImageOptions): Promise<void> {
@@ -361,6 +470,7 @@ export async function exportCompareImage({
   }
 
   drawWatermark(canvas);
+  if (scale) drawScaleBar(canvas, scale);
   if (labels) drawOverlayLabels(canvas, { ...labels, side });
 
   const blob = await canvasToBlob(canvas, mime, quality);

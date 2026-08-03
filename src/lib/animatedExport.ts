@@ -1,5 +1,5 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { compositeCanvas, blendCanvas, drawOverlayLabels, drawWatermark, type ExportLabels } from "./exportImage";
+import { compositeCanvas, blendCanvas, drawOverlayLabels, drawWatermark, drawScaleBar, type ExportLabels, type ExportScaleInfo } from "./exportImage";
 
 // "slide" (default): the same before/after sweep the on-screen comparison
 // slider makes. "opacity": crossfades between the two dates instead —
@@ -114,11 +114,13 @@ function generateFrames(
   maxWidth: number,
   style: AnimationStyle,
   labels?: ExportLabels,
+  scale?: ExportScaleInfo,
 ): HTMLCanvasElement[] {
   const holdFraction = holdFractionFor(durationMs, holdMs);
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
     const frame = renderFrame(mapA, mapB, style, i / frameCount, holdFraction, maxWidth);
+    if (scale) drawScaleBar(frame, scale);
     if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
     frames.push(frame);
   }
@@ -135,6 +137,7 @@ interface ExportCompareGifOptions {
   maxWidth?: number;
   quality?: number;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   onProgress?: (fraction: number) => void;
 }
 
@@ -157,13 +160,14 @@ export async function exportCompareGif({
   maxWidth = 640,
   quality = 0.7,
   labels,
+  scale,
   onProgress,
 }: ExportCompareGifOptions): Promise<Blob> {
   const frameCount = Math.max(2, Math.round((durationMs / 1000) * fps));
   const delayMs = Math.round(1000 / fps);
   const gifQuality = Math.max(1, Math.round(31 - quality * 30));
   const [GIFCtor, workerScript] = await Promise.all([loadGifLib(), getGifWorkerBlobUrl()]);
-  const frames = generateFrames(mapA, mapB, frameCount, durationMs, holdMs, maxWidth, style, labels);
+  const frames = generateFrames(mapA, mapB, frameCount, durationMs, holdMs, maxWidth, style, labels, scale);
 
   return new Promise((resolve, reject) => {
     const gif = new GIFCtor({
@@ -197,6 +201,7 @@ interface ExportCompareWebmOptions {
   maxWidth?: number;
   quality?: number;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   onProgress?: (fraction: number) => void;
 }
 
@@ -217,6 +222,7 @@ export async function exportCompareWebm({
   maxWidth = 640,
   quality = 0.7,
   labels,
+  scale,
   onProgress,
 }: ExportCompareWebmOptions): Promise<Blob> {
   if (typeof MediaRecorder === "undefined") {
@@ -257,6 +263,7 @@ export async function exportCompareWebm({
       const elapsed = now - start;
       const t = (elapsed % durationMs) / durationMs;
       const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
+      if (scale) drawScaleBar(frame, scale);
       if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0);

@@ -11,7 +11,7 @@ import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/c
 import type { ScenePriority, Bbox } from "./lib/earthSearch";
 import { getSceneAssets } from "./lib/earthSearch";
 import type { PlaceResult } from "./lib/geocode";
-import { exportCompareImage, exportSingleImage, downloadBlob, type ExportLabels } from "./lib/exportImage";
+import { exportCompareImage, exportSingleImage, downloadBlob, computeMetersPerCssPixel, type ExportLabels, type ExportScaleInfo } from "./lib/exportImage";
 import { exportHighResCompareImage, exportHighResSingleImage } from "./lib/exportHighRes";
 import type { SceneAssets } from "./lib/cogRaster";
 import { exportCompareGif, exportCompareWebm, type AnimationStyle } from "./lib/animatedExport";
@@ -459,6 +459,10 @@ export default function App() {
     };
   }
 
+  function buildExportScale(map: MapLibreMap): ExportScaleInfo {
+    return { metersPerCssPixel: computeMetersPerCssPixel(map), cssWidth: map.getContainer().clientWidth };
+  }
+
   function computeExportFilename(kind: ExportKind, maxWidth: number, quality: number, duration: number, fps: number, animationStyle: AnimationStyle): string {
     const ext = kind === "jpeg" ? "jpg" : kind;
     const animated = kind === "gif" || kind === "webm";
@@ -516,6 +520,7 @@ export default function App() {
           outputWidth: options.maxWidth ?? 3840,
           quality: options.quality,
           labels: buildSingleExportLabels(),
+          scale: buildExportScale(mapA),
         });
       } else {
         await exportSingleImage({
@@ -525,6 +530,7 @@ export default function App() {
           maxWidth: options.maxWidth,
           quality: options.quality,
           labels: buildSingleExportLabels(),
+          scale: buildExportScale(mapA),
         });
       }
       showToast(t("exportSuccess", { kind: kind.toUpperCase() }));
@@ -603,6 +609,7 @@ export default function App() {
             outputWidth: options.maxWidth ?? 3840,
             quality: options.quality,
             labels: buildExportLabels(exportTarget),
+            scale: buildExportScale(inst.mapA),
           });
         } else {
           await exportCompareImage({
@@ -615,6 +622,7 @@ export default function App() {
             maxWidth: options.maxWidth,
             quality: options.quality,
             labels: buildExportLabels(exportTarget),
+            scale: buildExportScale(inst.mapA),
           });
         }
         showToast(t("exportSuccess", { kind: kind.toUpperCase() }));
@@ -637,6 +645,7 @@ export default function App() {
     setProgressPercent(0);
     try {
       const labels = buildExportLabels("slide");
+      const scale = buildExportScale(inst.mapA);
       const onProgress = (p: number) => {
         const percent = Math.round(p * 100);
         setProgressText(t("generating", { label, percent }));
@@ -645,8 +654,8 @@ export default function App() {
       const style = options.animationStyle ?? "slide";
       const blob =
         kind === "gif"
-          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress })
-          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, onProgress });
+          ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, scale, onProgress })
+          : await exportCompareWebm({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, scale, onProgress });
       downloadBlob(blob, options.filename);
       showToast(t("animExportSuccess", { label }));
     } catch (err) {
