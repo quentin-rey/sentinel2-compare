@@ -235,7 +235,12 @@ const communesCache = new Map<string, Promise<CommuneCollection>>();
 function fetchCommunesForDepartement(code: string): Promise<CommuneCollection> {
   let cached = communesCache.get(code);
   if (!cached) {
-    const url = `https://geo.api.gouv.fr/departements/${code}/communes?fields=nom,code,centre,population&format=geojson&geometry=centre`;
+    // geometry=mairie (not the default "centre") — issue #40: "centre" is
+    // the commune polygon's geometric centroid, which for large/irregularly
+    // shaped communes (e.g. one spanning coastline to inland lakes) can sit
+    // km away from the actual built-up town. The town hall is, by
+    // definition, always inside the built-up area.
+    const url = `https://geo.api.gouv.fr/departements/${code}/communes?fields=nom,code,mairie,population&format=geojson&geometry=mairie`;
     cached = fetch(url)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
