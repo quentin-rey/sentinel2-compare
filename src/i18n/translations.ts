@@ -160,6 +160,7 @@ export interface Translations {
   generatingHighRes: string;
   highResRotatedFallback: string;
   highResUnresolvedFallback: string;
+  highResLayersFallback: string;
   shareCopied: string;
 }
 
@@ -307,6 +308,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     generatingHighRes: "Rendu haute résolution en cours… cela peut prendre un moment.",
     highResRotatedFallback: "Export haute résolution indisponible en vue pivotée/inclinée — export standard utilisé.",
     highResUnresolvedFallback: "Scène introuvable pour l'export haute résolution — export standard utilisé.",
+    highResLayersFallback: "Export haute résolution indisponible avec les couches Villes/Départements — export standard utilisé.",
     shareCopied: "Lien de partage copié dans le presse-papiers.",
   },
   en: {
@@ -452,6 +454,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     generatingHighRes: "Rendering at high resolution… this can take a moment.",
     highResRotatedFallback: "High-resolution export isn't available on a rotated/tilted view — used the standard export instead.",
     highResUnresolvedFallback: "Couldn't resolve the scene for a high-resolution export — used the standard export instead.",
+    highResLayersFallback: "High-resolution export isn't available with the Cities/Départements layers — used the standard export instead.",
     shareCopied: "Share link copied to clipboard.",
   },
 };

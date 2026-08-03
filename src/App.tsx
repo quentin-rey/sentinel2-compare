@@ -481,8 +481,16 @@ export default function App() {
     if (!mapA || (kind !== "png" && kind !== "jpeg")) return;
 
     const rotatedOrPitched = mapA.getBearing() !== 0 || mapA.getPitch() !== 0;
-    let highRes = Boolean(options.highRes) && !rotatedOrPitched;
+    // The high-res path samples straight from the COGs, bypassing MapLibre
+    // entirely — it never draws the Villes/Départements vector layers, so a
+    // high-res export with either one on would silently drop them (issue
+    // #34). Same fallback-to-standard-capture treatment as a rotated/tilted
+    // view, which has the same "can't be produced by direct COG sampling"
+    // problem for a different reason.
+    const adminLayersActive = showDepartements || showVilles;
+    let highRes = Boolean(options.highRes) && !rotatedOrPitched && !adminLayersActive;
     if (options.highRes && rotatedOrPitched) showToast(t("highResRotatedFallback"));
+    else if (options.highRes && adminLayersActive) showToast(t("highResLayersFallback"));
 
     let scene: SceneAssets | undefined;
     if (highRes) {
@@ -548,9 +556,15 @@ export default function App() {
       // fall back to the ordinary capture instead of producing a mismatched
       // image if the view is rotated or tilted.
       const rotatedOrPitched = inst.mapA.getBearing() !== 0 || inst.mapA.getPitch() !== 0;
-      let highRes = Boolean(options.highRes) && !rotatedOrPitched;
+      // See handleSingleExportConfirm — high-res sampling never draws the
+      // Villes/Départements layers, so fall back the same way it already
+      // does for a rotated/tilted view (issue #34).
+      const adminLayersActive = showDepartements || showVilles;
+      let highRes = Boolean(options.highRes) && !rotatedOrPitched && !adminLayersActive;
       if (options.highRes && rotatedOrPitched) {
         showToast(t("highResRotatedFallback"));
+      } else if (options.highRes && adminLayersActive) {
+        showToast(t("highResLayersFallback"));
       }
 
       let sceneA: SceneAssets | undefined;
