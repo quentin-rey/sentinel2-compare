@@ -118,9 +118,12 @@ async function pickOverview(tiff: GeoTIFF, targetGsd: number): Promise<{ index: 
   for (let i = 0; i < count; i++) {
     const img: GeoTIFFImage = i === 0 ? main : await tiff.getImage(i);
     const gsd = mainResX * (mainWidth / img.getWidth());
-    // Keep picking coarser levels as long as they're still fine enough —
-    // avoids downloading full 10m data for a zoomed-out view.
-    if (gsd <= targetGsd * 1.3 || i === 0) best = i;
+    // Keep picking coarser levels as long as they're still at least as fine
+    // as this render needs — avoids downloading full 10m data for a
+    // zoomed-out view. No slack: a previous 1.3x tolerance here let this
+    // pick a source level up to 30% coarser than the zoom actually needs,
+    // which no amount of resampling (however good) can un-blur — issue #36.
+    if (gsd <= targetGsd || i === 0) best = i;
   }
   return { index: best, bbox: main.getBoundingBox() as [number, number, number, number] };
 }
