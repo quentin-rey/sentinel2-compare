@@ -26,6 +26,12 @@ Pages — no application backend.
   (`lib/earthSearch.ts`).
 - **Place search**: [Nominatim (OpenStreetMap)](https://nominatim.org/),
   free, no key.
+- **Villes/départements overlays**: commune (town hall coordinates —
+  `geometry=mairie`, not the administrative polygon centroid) and
+  département boundaries from
+  [geo.api.gouv.fr](https://geo.api.gouv.fr/) and a
+  [community-maintained départements GeoJSON](https://github.com/gregoiredavid/france-geojson),
+  both free and keyless (`lib/adminLayers.ts`).
 - **Swipe**: two overlaid MapLibre instances, camera-synchronized, with a
   CSS `clip-path` driven by a draggable slider.
 
@@ -37,12 +43,14 @@ the browser.
 ```
 src/
   lib/          pure functions / network calls (earthSearch, cogRaster,
-                cogProtocol, renderModes, geocode, exportImage,
-                animatedExport, swipe, config) — no React dependency
+                cogProtocol, renderModes, geocode, adminLayers, exportImage,
+                exportHighRes, animatedExport, swipe, config) — no React
+                dependency
   workers/      cogTile.worker.ts — off-main-thread COG decode/render
   hooks/        useBaseMap, useCompareMaps (the app's core: lifecycle of
                 the two MapLibre maps + slider), useTheme,
-                useMenuCollapsed, useToasts, useGeocodeSearch, useLanguage
+                useMenuCollapsed, useToasts, useGeocodeSearch, useLanguage,
+                useLocalStorageState, useDisablePinchZoom
   i18n/         FR/EN translation dictionary
   components/   Navbar, panel accordion sections, CompareView, modals
   utils/        small formatting helpers
@@ -91,18 +99,6 @@ npm run lint         # oxlint
 npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
 ```
 
-## Deployment (GitHub Pages)
-
-Automated via `.github/workflows/deploy.yml`: every push to `main` builds
-the app and deploys it to GitHub Pages via `actions/deploy-pages`.
-
-One manual step required on GitHub: Settings → Pages → Source =
-**GitHub Actions** (not "Deploy from a branch").
-
-The base path (`base` in `vite.config.ts`) is set to match the repo name
-(`/sentinel2-compare/`) — adjust it if the repo is renamed or if the app is
-served at the root of a user/organization site.
-
 ## Features
 
 - Georeferenced swipe comparison (synchronized pan/zoom between the two dates)
@@ -118,11 +114,18 @@ served at the root of a user/organization site.
 - Clear detection and message if no image is available for the chosen criteria
 - Share via URL (place + dates + mode + settings), kept in sync with a
   manually picked date from a label's dropdown, not just the sidebar's dates
+- Optional overlays: town names (positioned at the town hall, not the
+  administrative centroid) and département boundaries, both togglable with
+  their own styling (population floor, text color/halo/size, line opacity)
+- Distance scale: a live on-map control, and burned into every export at
+  the correct scale for that export's own resolution
 - PNG/JPEG/GIF/WebM export with settings (size, quality, duration/smoothness
-  for animations, filename), dated info bubbles burned into the export.
-  PNG/JPEG can optionally render fresh from the satellite data at a
-  resolution decoupled from the screen (`lib/exportHighRes.ts`) instead of
-  capturing the on-screen canvas — see the note in Known limitations.
+  and end-of-loop pause for animations, filename), dated info bubbles and a
+  watermark burned into the export. GIF/WebM offer two sweep styles (slide
+  or opacity crossfade). PNG/JPEG can optionally render fresh from the
+  satellite data at a resolution decoupled from the screen
+  (`lib/exportHighRes.ts`) instead of capturing the on-screen canvas — see
+  the note in Known limitations.
 - Light/dark/auto theme, collapsible panel, keyboard shortcuts, FR/EN
   language toggle
 
@@ -150,7 +153,9 @@ served at the root of a user/organization site.
   satellite data at a fixed 3840px-wide target instead of capturing the
   on-screen canvas, but only for a north-up, unpitched view (it samples an
   axis-aligned grid, which can't reproduce a rotated/tilted camera the way
-  reading back the actual WebGL framebuffer can — falls back to the normal
-  capture export automatically if the view is rotated/tilted, or if the
-  exact scene can't be resolved). Not available for animated GIF/WebM
-  export, which stay on the screen-capture path.
+  reading back the actual WebGL framebuffer can), and only when the
+  villes/départements overlays are off (that direct-COG render never draws
+  MapLibre's own vector layers) — falls back to the normal capture export
+  automatically in either case, or if the exact scene can't be resolved.
+  Not available for animated GIF/WebM export, which stay on the
+  screen-capture path.
