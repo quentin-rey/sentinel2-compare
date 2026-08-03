@@ -190,6 +190,15 @@ html, body {
   right: 12px;
 }
 
+/* mapA's ScaleControl (issue #35) defaults to the same bottom-left corner
+   as the "avant" bubble above — push it up above the bubble's ~40px
+   footprint (bottom: 12px + ~28px tall). Desktop only: on narrow viewports
+   .compare-label moves to the top instead (see the max-width: 640px block
+   below), leaving the bottom-left corner free. */
+#compare .maplibregl-ctrl-bottom-left {
+  margin-bottom: 46px;
+}
+
 .date-picker {
   cursor: pointer;
   background: rgba(255,255,255,0.15);
@@ -966,6 +975,12 @@ kbd {
      with it so it keeps the default top offset. */
   .compare-label.label-a {
     top: calc(12px + 38px + 10px);
+  }
+
+  /* .compare-label moved to the top above, so the bottom-left corner is
+     free again here — back to MapLibre's own default margin. */
+  #compare .maplibregl-ctrl-bottom-left {
+    margin-bottom: 10px;
   }
 }
 

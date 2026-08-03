@@ -271,6 +271,10 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         interactive: true,
         preserveDrawingBuffer: true,
       });
+      // Only on mapA — mapA/mapB stay in sync (same center/zoom), and a
+      // second ScaleControl on mapB would just draw an identical scale bar
+      // on top of the first one at the same screen position.
+      mapA.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: "metric" }), "bottom-left");
       inst.mapA = mapA;
       inst.mapB = mapB;
       setMapGeneration((g) => g + 1);
@@ -370,6 +374,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         interactive: true,
         preserveDrawingBuffer: true,
       });
+      mapA.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: "metric" }), "bottom-left");
       inst.mapA = mapA;
       setMapGeneration((g) => g + 1);
 

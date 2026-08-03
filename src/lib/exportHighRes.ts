@@ -17,11 +17,13 @@ import {
   compositeCanvasesAt,
   drawOverlayLabels,
   drawWatermark,
+  drawScaleBar,
   canvasToBlob,
   downloadBlob,
   type ExportFormat,
   type ExportTarget,
   type ExportLabels,
+  type ExportScaleInfo,
   type ExportSide,
 } from "./exportImage";
 
@@ -93,6 +95,7 @@ interface ExportHighResSingleImageOptions {
   format?: ExportFormat;
   filename?: string;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   outputWidth: number;
   quality?: number;
 }
@@ -110,6 +113,7 @@ export async function exportHighResSingleImage({
   format = "png",
   filename,
   labels,
+  scale,
   outputWidth,
   quality = 0.92,
 }: ExportHighResSingleImageOptions): Promise<void> {
@@ -117,6 +121,7 @@ export async function exportHighResSingleImage({
   const ext = format === "jpeg" ? "jpg" : "png";
   const canvas = await renderHighResCanvas(map, scene, mode, outputWidth);
   drawWatermark(canvas);
+  if (scale) drawScaleBar(canvas, scale);
   if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
   const blob = await canvasToBlob(canvas, mime, quality);
   downloadBlob(blob, filename || `sentinel2-image-hd.${ext}`);
@@ -136,6 +141,7 @@ interface ExportHighResOptions {
   target?: ExportTarget;
   filename?: string;
   labels?: ExportLabels;
+  scale?: ExportScaleInfo;
   outputWidth: number;
   quality?: number;
 }
@@ -151,6 +157,7 @@ export async function exportHighResCompareImage({
   target = "slide",
   filename,
   labels,
+  scale,
   outputWidth,
   quality = 0.92,
 }: ExportHighResOptions): Promise<void> {
@@ -179,6 +186,7 @@ export async function exportHighResCompareImage({
   }
 
   drawWatermark(canvas);
+  if (scale) drawScaleBar(canvas, scale);
   if (labels) drawOverlayLabels(canvas, { ...labels, side });
 
   const blob = await canvasToBlob(canvas, mime, quality);
