@@ -284,14 +284,17 @@ export function computeMetersPerCssPixel(map: MapLibreMap): number {
   return left.distanceTo(right) / 100;
 }
 
-// Standard cartographic scale-bar rounding: the largest "1/2/5 * 10^n"
-// value that doesn't exceed the raw (pixel-budget-derived) distance, so the
-// bar always reads a round number instead of an arbitrary one.
-function niceScaleDistance(rawMeters: number): number {
-  const pow10 = Math.pow(10, Math.floor(Math.log10(rawMeters)));
-  const fraction = rawMeters / pow10;
-  const niceFraction = fraction >= 5 ? 5 : fraction >= 2 ? 2 : 1;
-  return niceFraction * pow10;
+// Mirrors MapLibre's own ScaleControl rounding (scale_control.ts's
+// getRoundNum) exactly, so a given view's export always shows the same
+// distance as its live on-screen scale bar — not just a plausible-looking
+// one. An earlier version used a different pixel budget and a coarser
+// 1/2/5 rounding set, which could disagree with the live control (e.g.
+// 500m live vs. 1km export for the same view).
+function getRoundNum(num: number): number {
+  const pow10 = Math.pow(10, String(Math.floor(num)).length - 1);
+  const d = num / pow10;
+  const nice = d >= 10 ? 10 : d >= 5 ? 5 : d >= 3 ? 3 : d >= 2 ? 2 : 1;
+  return pow10 * nice;
 }
 
 function formatScaleDistance(meters: number): string {
@@ -316,8 +319,14 @@ export function drawScaleBar(canvas: HTMLCanvasElement, { metersPerCssPixel, css
   const { width } = canvas;
   const margin = Math.max(8, Math.round(width / 80));
   const fontSize = clampFont(width / 75, 10, 15);
-  const maxBarWidth = Math.min(140, width * 0.22);
-  const niceDistance = niceScaleDistance(maxBarWidth * metersPerPixel);
+  // Same 100px reference MapLibre's ScaleControl uses (its default
+  // maxWidth) — measured in *source* CSS pixels so the rounded distance
+  // comes out identical to the live control, whatever this canvas's own
+  // resolution is. The bar is then drawn at that distance's actual pixel
+  // length on this canvas, which naturally stays a sane fraction of its
+  // width (equivalent to ~100 CSS px scaled by the same ratio as the rest
+  // of the image), even though it's rarely exactly 100px.
+  const niceDistance = getRoundNum(100 * metersPerCssPixel);
   const barWidth = niceDistance / metersPerPixel;
   const label = formatScaleDistance(niceDistance);
 
