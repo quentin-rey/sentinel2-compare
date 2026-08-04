@@ -91,46 +91,52 @@ export function registerCogProtocol(): void {
   if (registered) return;
   registered = true;
   addProtocol("s2cog", (params, abortController) => {
-    return new Promise((resolve, reject) => {
-      const parsed = parseS2CogUrl(params.url);
-      if (!parsed) {
-        reject(new Error(`URL de tuile invalide: ${params.url}`));
-        return;
-      }
-      const scene = sceneRegistry.get(parsed.sceneKey);
-      if (!scene) {
-        reject(new Error(`Scène inconnue: ${parsed.sceneKey}`));
-        return;
-      }
+    const parsed = parseS2CogUrl(params.url);
+    if (!parsed) return Promise.reject(new Error(`URL de tuile invalide: ${params.url}`));
+    const scene = sceneRegistry.get(parsed.sceneKey);
+    if (!scene) return Promise.reject(new Error(`Scène inconnue: ${parsed.sceneKey}`));
 
-      const id = nextRequestId++;
-      const pool = ensureLanePool(parsed.lane);
-      const worker = pool[nextWorker[parsed.lane] % pool.length];
-      nextWorker[parsed.lane]++;
+    // A render can fail for reasons that have nothing to do with this tile
+    // specifically — e.g. one flaky request in the burst of concurrent S3
+    // range requests a viewport's worth of tiles triggers at once. MapLibre
+    // only auto-retries a tile it itself cancelled (state 'unloaded'); one
+    // that genuinely rejects is marked 'errored' and never retried on its
+    // own, which left it permanently blank. One retry here — a fresh
+    // request/id, same as a real MapLibre-driven retry would send — absorbs
+    // that kind of transient hiccup before it ever reaches MapLibre.
+    const attempt = (attemptsLeft: number): Promise<{ data: ArrayBuffer }> =>
+      new Promise((resolve, reject) => {
+        const id = nextRequestId++;
+        const pool = ensureLanePool(parsed.lane);
+        const worker = pool[nextWorker[parsed.lane] % pool.length];
+        nextWorker[parsed.lane]++;
 
-      const onAbort = () => {
-        pending.delete(id);
-        // Tells the worker to bail out of this render early instead of
-        // finishing it regardless — see the cancelledIds comment in
-        // cogTile.worker.ts for why that matters under fast zooming.
-        worker.postMessage({ kind: "cancel", id } satisfies CogCancelRequest);
-        reject(new Error("Rendu de tuile annulé"));
-      };
-      abortController.signal.addEventListener("abort", onAbort, { once: true });
+        const onAbort = () => {
+          pending.delete(id);
+          // Tells the worker to bail out of this render early instead of
+          // finishing it regardless — see the cancelledIds comment in
+          // cogTile.worker.ts for why that matters under fast zooming.
+          worker.postMessage({ kind: "cancel", id } satisfies CogCancelRequest);
+          reject(new Error("Rendu de tuile annulé"));
+        };
+        abortController.signal.addEventListener("abort", onAbort, { once: true });
 
-      pending.set(id, {
-        resolve: (buffer) => {
-          abortController.signal.removeEventListener("abort", onAbort);
-          resolve({ data: buffer });
-        },
-        reject: (err) => {
-          abortController.signal.removeEventListener("abort", onAbort);
-          reject(err);
-        },
+        pending.set(id, {
+          resolve: (buffer) => {
+            abortController.signal.removeEventListener("abort", onAbort);
+            resolve({ data: buffer });
+          },
+          reject: (err) => {
+            abortController.signal.removeEventListener("abort", onAbort);
+            if (attemptsLeft > 0 && !abortController.signal.aborted) attempt(attemptsLeft - 1).then(resolve, reject);
+            else reject(err);
+          },
+        });
+
+        const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y, tileSize: TILE_OUTPUT_SIZE };
+        worker.postMessage(request);
       });
 
-      const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y, tileSize: TILE_OUTPUT_SIZE };
-      worker.postMessage(request);
-    });
+    return attempt(1);
   });
 }

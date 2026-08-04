@@ -89,7 +89,17 @@ const tiffCache = new Map<string, Promise<GeoTIFF>>();
 function getTiff(href: string): Promise<GeoTIFF> {
   let cached = tiffCache.get(href);
   if (!cached) {
-    cached = fromUrl(href);
+    // A transient failure here (e.g. one flaky request in the burst of
+    // concurrent range requests a viewport's worth of tiles triggers) must
+    // not get cached as a permanent rejection — every tile needing this
+    // band would then fail forever, for the rest of the session, instead
+    // of just this one. Deleting the cache entry on rejection lets the
+    // next independent request (a later tile, a retry) try again, the same
+    // self-healing readBandWindow already does for its own window cache.
+    cached = fromUrl(href).catch((err) => {
+      tiffCache.delete(href);
+      throw err;
+    });
     tiffCache.set(href, cached);
   }
   return cached;
@@ -122,7 +132,16 @@ const sceneBboxCache = new Map<string, Promise<[number, number, number, number]>
 function getSceneBbox(href: string): Promise<[number, number, number, number]> {
   let cached = sceneBboxCache.get(href);
   if (!cached) {
-    cached = getTiff(href).then(async (tiff) => (await tiff.getImage(0)).getBoundingBox() as [number, number, number, number]);
+    // Same self-healing as getTiff above — a scene's bbox gates every one
+    // of its tiles (the overlap check just above this function's call
+    // site), so a permanently-cached rejection here would blank the whole
+    // scene, not just one tile.
+    cached = getTiff(href)
+      .then(async (tiff) => (await tiff.getImage(0)).getBoundingBox() as [number, number, number, number])
+      .catch((err) => {
+        sceneBboxCache.delete(href);
+        throw err;
+      });
     sceneBboxCache.set(href, cached);
   }
   return cached;
@@ -202,10 +221,15 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
     // are rarely a multiple of the source COG's internal tile size) row/
     // column of internal TIFF tiles, which some geotiff.js decode paths
     // mishandle (issue #22: a whole XYZ tile going blank because just one
-    // band's window happened to land there). Retrying once with the window
-    // inset a bit on every side recovers everything but a thin sliver right
-    // at the true edge, instead of losing the entire tile to a single
-    // failed band read.
+    // band's window happened to land there). Retrying with the window
+    // inset a bit more on every side each time recovers everything but a
+    // thin sliver right at the true edge, instead of losing the entire
+    // tile to a single failed band read. One retry (32px) was enough for
+    // the 10m bands true-color/false-color/honc/fire already used, but not
+    // for SWIR's 20m bands (B11/B8A/B5) — their overview images are already
+    // much smaller in pixels, so a snapped 256px-aligned window covers
+    // proportionally more of it, landing on a bad internal tile boundary
+    // more often and needing a few more, deeper insets to clear it.
     const RETRY_INSET = 32;
     const attemptRead = async (l: number, t: number, r: number, b: number, retriesLeft: number): Promise<BandWindow> => {
       const windowBboxUtm: [number, number, number, number] = [bLeft + l / pxPerMx, bTop - b / pxPerMy, bLeft + r / pxPerMx, bTop - t / pxPerMy];
@@ -236,7 +260,7 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
         return { data: new Uint16Array(0), width: 0, height: 0, bboxUtm: windowBboxUtm };
       }
     };
-    cached = attemptRead(left, top, right, bottom, 1);
+    cached = attemptRead(left, top, right, bottom, 4);
     if (windowCache.size >= WINDOW_CACHE_LIMIT) {
       const oldest = windowCache.keys().next().value;
       if (oldest !== undefined) windowCache.delete(oldest);
