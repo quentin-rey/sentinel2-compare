@@ -33,6 +33,15 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
       bearing: from.getBearing(),
       pitch: from.getPitch(),
     });
+    // jumpTo()'s internal stop() only cancels ease animations — it never
+    // clears ScrollZoomHandler's own _targetZoom cache, which a wheel-zoom
+    // gesture keeps between events to know where it's zooming *to*. Left
+    // stale after an external jumpTo (e.g. this camera sync firing mid-
+    // gesture), the next scroll on `to` fights that stale target instead of
+    // starting from the zoom `to` is actually now at — reads as "stuck".
+    // reset() (public on the Map instance, if not heavily documented)
+    // clears it. https://github.com/maplibre/maplibre-gl-js/issues/2709
+    to.scrollZoom.reset();
     syncing = false;
   }
 
