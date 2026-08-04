@@ -8,7 +8,7 @@
 import { addProtocol } from "maplibre-gl";
 import type { SceneAssets } from "./cogRaster";
 import type { RenderMode } from "./config";
-import type { CogTileRequest, CogTileResponse } from "../workers/cogTile.worker";
+import type { CogTileRequest, CogTileResponse, CogCancelRequest } from "../workers/cogTile.worker";
 
 const SCENE_REGISTRY_LIMIT = 20;
 const sceneRegistry = new Map<string, SceneAssets>();
@@ -110,6 +110,10 @@ export function registerCogProtocol(): void {
 
       const onAbort = () => {
         pending.delete(id);
+        // Tells the worker to bail out of this render early instead of
+        // finishing it regardless — see the cancelledIds comment in
+        // cogTile.worker.ts for why that matters under fast zooming.
+        worker.postMessage({ kind: "cancel", id } satisfies CogCancelRequest);
         reject(new Error("Rendu de tuile annulé"));
       };
       abortController.signal.addEventListener("abort", onAbort, { once: true });
