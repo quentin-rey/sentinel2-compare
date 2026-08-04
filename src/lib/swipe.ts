@@ -11,6 +11,11 @@ interface CreateSwipeOptions {
 export interface SwipeControl {
   setPosition: (fraction: number) => void;
   getPosition: () => number;
+  // True while syncCamera's jumpTo() is applying one map's camera to the
+  // other — lets a caller tell a synthetic, sync-induced "moveend" (fired
+  // synchronously by that jumpTo) apart from a real one caused by the
+  // user's own interaction. See useCompareMaps.ts's moveend handlers.
+  isSyncing: () => boolean;
   // Removes every listener this instance attached — must be called before
   // discarding a swipe control (a new compare run creates a fresh one on the
   // same persistent #swiper/mapA/mapB-container elements, so without this
@@ -33,6 +38,15 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
       bearing: from.getBearing(),
       pitch: from.getPitch(),
     });
+    // jumpTo()'s internal stop() only cancels ease animations — it never
+    // clears ScrollZoomHandler's own _targetZoom cache, which a wheel-zoom
+    // gesture keeps between events to know where it's zooming *to*. Left
+    // stale after an external jumpTo (e.g. this camera sync firing mid-
+    // gesture), the next scroll on `to` fights that stale target instead of
+    // starting from the zoom `to` is actually now at — reads as "stuck".
+    // reset() (public on the Map instance, if not heavily documented)
+    // clears it. https://github.com/maplibre/maplibre-gl-js/issues/2709
+    to.scrollZoom.reset();
     syncing = false;
   }
 
@@ -141,5 +155,5 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     if (dragging) setMapGesturesEnabled(true);
   }
 
-  return { setPosition, getPosition: () => position, destroy };
+  return { setPosition, getPosition: () => position, isSyncing: () => syncing, destroy };
 }

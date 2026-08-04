@@ -279,8 +279,24 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       inst.mapB = mapB;
       setMapGeneration((g) => g + 1);
 
-      mapA.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapA));
-      mapB.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapB));
+      // A synced map's jumpTo() (see swipe.ts) fires its own "moveend"
+      // synchronously, once per "move" tick of whichever side the user is
+      // actually driving — without the isSyncing() guard, a fast continuous
+      // gesture (pan, wheel-zoom, pinch) would fire onMoveEnd's URL sync
+      // and (if villes/départements are on) network refetch dozens of
+      // times a second, which is real enough main-thread work to visibly
+      // stall input handling on whichever map is being driven. The other
+      // map's *real* moveend (when the user's own gesture actually ends)
+      // already covers both sides via bboxOf/targets in App.tsx's handler,
+      // so skipping the synthetic one here loses nothing.
+      mapA.on("moveend", () => {
+        if (inst.swipe?.isSyncing()) return;
+        optionsRef.current?.onMoveEnd?.(mapA);
+      });
+      mapB.on("moveend", () => {
+        if (inst.swipe?.isSyncing()) return;
+        optionsRef.current?.onMoveEnd?.(mapB);
+      });
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 

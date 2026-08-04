@@ -22,6 +22,35 @@ const EARTH_RADIUS = 6378137;
 const ORIGIN_SHIFT = Math.PI * EARTH_RADIUS;
 const WEB_MERCATOR = "EPSG:3857";
 
+// setTimeout(fn, 0) gets clamped to a ~4ms floor by browsers, which adds up
+// across the several yields a single render does (see renderRegionRGBA's
+// row-chunk loop) — a MessageChannel round-trip still yields to the same
+// macrotask queue (so a worker's pending "cancel" message gets a chance to
+// run before the loop continues) without that floor, the same trick
+// scheduler implementations (e.g. React's) use for this exact reason.
+//
+// Multiple renders can be mid-flight in the same worker at once (this
+// module's onmessage handler is async, so a new message can start before
+// an earlier render's awaits resolve) — a single shared port and a plain
+// `onmessage = resolve` would let a later yieldToEventLoop() call overwrite
+// an earlier one's handler, orphaning it forever (its render would just
+// hang). A FIFO queue instead: each call enqueues its own resolver and
+// posts one message, each received message dequeues and resolves exactly
+// one — correct regardless of how many renders are yielding concurrently,
+// since MessageChannel delivers in post order.
+let yieldChannel: MessageChannel | null = null;
+const yieldQueue: (() => void)[] = [];
+function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => {
+    if (!yieldChannel) {
+      yieldChannel = new MessageChannel();
+      yieldChannel.port1.onmessage = () => yieldQueue.shift()?.();
+    }
+    yieldQueue.push(resolve);
+    yieldChannel.port2.postMessage(null);
+  });
+}
+
 function tileBoundsMeters(z: number, x: number, y: number) {
   const worldSize = 2 * ORIGIN_SHIFT;
   const tileSizeM = worldSize / 2 ** z;
@@ -259,6 +288,7 @@ export async function renderRegionRGBA(
   bboxMerc: [minX: number, minY: number, maxX: number, maxY: number],
   outputWidth: number,
   outputHeight: number,
+  shouldCancel?: () => boolean,
 ): Promise<Uint8ClampedArray> {
   const bandKeys = RENDER_MODE_BANDS[mode];
   const utmDef = utmDefFor(scene.epsg);
@@ -287,6 +317,8 @@ export async function renderRegionRGBA(
     }
   }
 
+  if (shouldCancel?.()) throw new Error("Rendu annulé (tuile plus nécessaire)");
+
   const entries = await Promise.all(
     bandKeys.map(async (key) => {
       const href = scene.assets[key];
@@ -298,7 +330,18 @@ export async function renderRegionRGBA(
 
   const out = new Uint8ClampedArray(outputWidth * outputHeight * 4);
   const bandsRaw: Record<string, number> = {};
+  // Yielding every few rows (instead of running the whole loop in one
+  // uninterruptible burst) gives a cancelled render's worker a chance to
+  // actually notice — see the cancelledIds comment in cogTile.worker.ts.
+  // Chunked coarsely (quarters) since each yield has a real cost (see
+  // yieldToEventLoop) — this only needs to be prompt enough to matter under
+  // fast zooming, not fire on every row.
+  const ROWS_PER_CHUNK = Math.max(1, Math.ceil(outputHeight / 4));
   for (let py = 0; py < outputHeight; py++) {
+    if (py % ROWS_PER_CHUNK === 0) {
+      if (shouldCancel?.()) throw new Error("Rendu annulé (tuile plus nécessaire)");
+      await yieldToEventLoop();
+    }
     const my = maxY - ((py + 0.5) / outputHeight) * (maxY - minY);
     for (let px = 0; px < outputWidth; px++) {
       const mx = minX + ((px + 0.5) / outputWidth) * (maxX - minX);
@@ -344,9 +387,17 @@ export async function renderRegionRGBA(
   return out;
 }
 
-function renderTileRGBA(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number, tileSize: number): Promise<Uint8ClampedArray> {
+function renderTileRGBA(
+  scene: SceneAssets,
+  mode: RenderMode,
+  z: number,
+  x: number,
+  y: number,
+  tileSize: number,
+  shouldCancel?: () => boolean,
+): Promise<Uint8ClampedArray> {
   const merc = tileBoundsMeters(z, x, y);
-  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], tileSize, tileSize);
+  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], tileSize, tileSize, shouldCancel);
 }
 
 async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number): Promise<ArrayBuffer> {
@@ -359,8 +410,16 @@ async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number)
   return blob.arrayBuffer();
 }
 
-export async function renderTilePng(scene: SceneAssets, mode: RenderMode, z: number, x: number, y: number, tileSize: number): Promise<ArrayBuffer> {
-  const rgba = await renderTileRGBA(scene, mode, z, x, y, tileSize);
+export async function renderTilePng(
+  scene: SceneAssets,
+  mode: RenderMode,
+  z: number,
+  x: number,
+  y: number,
+  tileSize: number,
+  shouldCancel?: () => boolean,
+): Promise<ArrayBuffer> {
+  const rgba = await renderTileRGBA(scene, mode, z, x, y, tileSize, shouldCancel);
   return rgbaToPng(rgba, tileSize, tileSize);
 }
 
