@@ -11,6 +11,11 @@ interface CreateSwipeOptions {
 export interface SwipeControl {
   setPosition: (fraction: number) => void;
   getPosition: () => number;
+  // True while syncCamera's jumpTo() is applying one map's camera to the
+  // other — lets a caller tell a synthetic, sync-induced "moveend" (fired
+  // synchronously by that jumpTo) apart from a real one caused by the
+  // user's own interaction. See useCompareMaps.ts's moveend handlers.
+  isSyncing: () => boolean;
   // Removes every listener this instance attached — must be called before
   // discarding a swipe control (a new compare run creates a fresh one on the
   // same persistent #swiper/mapA/mapB-container elements, so without this
@@ -150,5 +155,5 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     if (dragging) setMapGesturesEnabled(true);
   }
 
-  return { setPosition, getPosition: () => position, destroy };
+  return { setPosition, getPosition: () => position, isSyncing: () => syncing, destroy };
 }
