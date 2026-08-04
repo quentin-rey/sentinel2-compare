@@ -27,6 +27,14 @@ function falseColor(nir: number, r: number, g: number): [number, number, number]
   return [to255(nir * gain), to255(r * gain), to255(g * gain)];
 }
 
+// issue #44: same gain-2.5 stretch as the classic Sentinel Hub "SWIR"
+// script (RGB = B11/B8/B4), applied instead to B11/B8A/B5 — see
+// config.ts's RENDER_MODE_BANDS comment for why.
+function swir(swir1: number, nirNarrow: number, redEdge: number): [number, number, number] {
+  const gain = 2.5;
+  return [to255(swir1 * gain), to255(nirNarrow * gain), to255(redEdge * gain)];
+}
+
 // tco-l2a.js — Highlight Optimized Natural Color: contrast/highlight
 // compression + saturation enhancement + sRGB gamma, ported as-is.
 const HONC_MAX_R = 3.0;
@@ -140,5 +148,7 @@ export function renderPixel(mode: RenderMode, bands: Record<string, number>): [n
       return honc(bands.red, bands.green, bands.blue);
     case "fire":
       return fire(bands.blue, bands.green, bands.red, bands.swir16, bands.swir22, bands.scl);
+    case "swir":
+      return swir(bands.swir16, bands.nir08, bands.rededge1);
   }
 }

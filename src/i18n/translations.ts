@@ -58,6 +58,7 @@ export interface Translations {
   renderModeFalseColor: string;
   renderModeHonc: string;
   renderModeFire: string;
+  renderModeSwir: string;
   priorityLabel: string;
   priorityClosest: string;
   priorityLeastCloud: string;
@@ -210,6 +211,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     renderModeFalseColor: "Fausses couleurs",
     renderModeHonc: "Highlight Optimized Natural Color",
     renderModeFire: "Feux de forêt",
+    renderModeSwir: "SWIR (B11/B8A/B5)",
     priorityLabel: "Priorité de sélection",
     priorityClosest: "Date la plus proche",
     priorityLeastCloud: "Moins nuageux",
@@ -356,6 +358,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     renderModeFalseColor: "False Color",
     renderModeHonc: "Highlight Optimized Natural Color",
     renderModeFire: "Wildfire",
+    renderModeSwir: "SWIR (B11/B8A/B5)",
     priorityLabel: "Selection priority",
     priorityClosest: "Closest date",
     priorityLeastCloud: "Least cloudy",

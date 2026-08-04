@@ -1,4 +1,4 @@
-export type RenderMode = "true-color" | "false-color" | "honc" | "fire";
+export type RenderMode = "true-color" | "false-color" | "honc" | "fire" | "swir";
 
 // Earth Search / AWS "sentinel-cogs" asset keys each render mode needs —
 // see lib/renderModes.ts for the pixel math applied to them (ported from
@@ -12,6 +12,13 @@ export const RENDER_MODE_BANDS: Record<RenderMode, string[]> = {
   // originally got from a CLP (cloud probability) band, which AWS doesn't
   // provide.
   fire: ["blue", "green", "red", "swir16", "swir22", "scl"],
+  // RGB = SWIR1 (B11) / NIR narrow (B8A) / Red edge 1 (B5) — issue #44: a
+  // user-suggested alternative to the classic SWIR/NIR/Red (B11/B8/B4)
+  // composite, picked so all three bands are natively 20m instead of mixing
+  // 20m and 10m (the app's resampling already handles mixed resolutions
+  // fine, as "fire" above proves, so this is a deliberate spectral choice —
+  // B5 is red-edge, not visible red — not a technical necessity).
+  swir: ["swir16", "nir08", "rededge1"],
 };
 
 export const DEFAULT_MAX_CLOUD = 30;

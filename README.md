@@ -68,6 +68,7 @@ per-pixel to the decoded COG bands:
 | False Color | B08/B04/B03 | Vegetation in red |
 | Highlight Optimized Natural Color | B04/B03/B02 | Contrast/gamma/saturation enhanced, highlights preserved |
 | Wildfire | B02/B03/B04/B11/B12/SCL | SWIR hotspot detection highlighting fires/burn scars |
+| SWIR (B11/B8A/B5) | B11/B8A/B5 | SWIR1/NIR-narrow/red-edge composite (issue #44) — all three bands natively 20m, unlike the classic B11/B8/B4 SWIR script |
 
 These are ports of evalscripts originally written for Sentinel Hub's server
 -side renderer, kept as reference/attribution in
@@ -102,7 +103,7 @@ npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
 ## Features
 
 - Georeferenced swipe comparison (synchronized pan/zoom between the two dates)
-- 4 render modes (True Color, False Color, HONC, Wildfire), rendered
+- 5 render modes (True Color, False Color, HONC, Wildfire, SWIR), rendered
   entirely client-side — no account or quota involved
 - "Closest date" selection priority (a preference, not an exclusion, on the
   cloud-cover threshold — so a smoky scene is never hidden) or
