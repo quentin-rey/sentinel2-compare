@@ -92,7 +92,7 @@ function cacheItem(feature: StacFeature): void {
 // Asset keys used by lib/config.ts's RENDER_MODE_BANDS — must list every
 // key that appears in any RENDER_MODE_BANDS entry, or getSceneAssets()
 // silently omits that band's href and rendering fails with "Asset manquant".
-const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "swir16", "swir22", "scl"];
+const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "nir08", "rededge1", "swir16", "swir22", "scl"];
 
 // Cache miss fallback — fetches this one item directly by id (a single,
 // fast request) rather than failing outright. Makes asset resolution

@@ -52,6 +52,7 @@ const RENDER_MODE_TEXT_KEYS: Record<RenderMode, TranslationKey> = {
   "false-color": "renderModeFalseColor",
   honc: "renderModeHonc",
   fire: "renderModeFire",
+  swir: "renderModeSwir",
 };
 
 type ActiveModal = "info" | "shortcuts" | null;

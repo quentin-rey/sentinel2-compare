@@ -116,6 +116,7 @@ export function CompareFormSection({
           <option value="false-color">{t("renderModeFalseColor")}</option>
           <option value="honc">{t("renderModeHonc")}</option>
           <option value="fire">{t("renderModeFire")}</option>
+          <option value="swir">{t("renderModeSwir")}</option>
         </select>
       </label>
       <details id="advanced-details">
