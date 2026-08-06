@@ -8,6 +8,7 @@
 // navigate to/open the image instead of downloading it), while blob: URLs
 // work consistently across browsers.
 import type { Map as MapLibreMap } from "maplibre-gl";
+import { niceRoundDistance, formatScaleDistance } from "./scale";
 
 export type ExportSide = "before" | "after" | "both";
 export type ExportTarget = "slide" | "before" | "after";
@@ -284,25 +285,6 @@ export function computeMetersPerCssPixel(map: MapLibreMap): number {
   return left.distanceTo(right) / 100;
 }
 
-// Mirrors MapLibre's own ScaleControl rounding (scale_control.ts's
-// getRoundNum) exactly, so a given view's export always shows the same
-// distance as its live on-screen scale bar — not just a plausible-looking
-// one. An earlier version used a different pixel budget and a coarser
-// 1/2/5 rounding set, which could disagree with the live control (e.g.
-// 500m live vs. 1km export for the same view).
-function getRoundNum(num: number): number {
-  const pow10 = Math.pow(10, String(Math.floor(num)).length - 1);
-  const d = num / pow10;
-  const nice = d >= 10 ? 10 : d >= 5 ? 5 : d >= 3 ? 3 : d >= 2 ? 2 : 1;
-  return pow10 * nice;
-}
-
-function formatScaleDistance(meters: number): string {
-  if (meters < 1000) return `${meters} m`;
-  const km = meters / 1000;
-  return `${km % 1 === 0 ? km : km.toFixed(1)} km`;
-}
-
 /**
  * Burns a cartographic scale bar into the top-right corner of an exported
  * canvas (issue #35) — the top-left is already taken by drawWatermark, and
@@ -326,7 +308,7 @@ export function drawScaleBar(canvas: HTMLCanvasElement, { metersPerCssPixel, css
   // length on this canvas, which naturally stays a sane fraction of its
   // width (equivalent to ~100 CSS px scaled by the same ratio as the rest
   // of the image), even though it's rarely exactly 100px.
-  const niceDistance = getRoundNum(100 * metersPerCssPixel);
+  const niceDistance = niceRoundDistance(100 * metersPerCssPixel);
   const barWidth = niceDistance / metersPerPixel;
   const label = formatScaleDistance(niceDistance);
 
