@@ -3,6 +3,7 @@ import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
 import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
 import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
+import { NiceScaleControl } from "../lib/scaleControl";
 import { firstAdminLayerId } from "../lib/adminLayers";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
@@ -274,7 +275,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       // Only on mapA — mapA/mapB stay in sync (same center/zoom), and a
       // second ScaleControl on mapB would just draw an identical scale bar
       // on top of the first one at the same screen position.
-      mapA.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: "metric" }), "bottom-left");
+      mapA.addControl(new NiceScaleControl({ maxWidth: 100 }), "bottom-left");
       inst.mapA = mapA;
       inst.mapB = mapB;
       setMapGeneration((g) => g + 1);
@@ -390,7 +391,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         interactive: true,
         preserveDrawingBuffer: true,
       });
-      mapA.addControl(new maplibregl.ScaleControl({ maxWidth: 100, unit: "metric" }), "bottom-left");
+      mapA.addControl(new NiceScaleControl({ maxWidth: 100 }), "bottom-left");
       inst.mapA = mapA;
       setMapGeneration((g) => g + 1);
 
