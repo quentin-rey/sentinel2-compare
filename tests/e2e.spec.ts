@@ -238,3 +238,83 @@ test("a displayed single image survives a refresh without auto-upgrading to a co
   await expect(page.locator("#date2")).toHaveCount(0);
   await expect(page.locator("#add-compare-date-btn")).toBeVisible();
 });
+
+test("Info modal's replay button reopens the onboarding tour (issue #31)", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".onboarding-card")).toHaveCount(0);
+
+  await page.click("#info-btn");
+  await expect(page.locator("#info-modal")).not.toHaveClass(/hidden/);
+  await page.click("#info-modal-replay-tour");
+  await expect(page.locator("#info-modal")).toHaveClass(/hidden/);
+  await expect(page.locator(".onboarding-card")).toBeVisible();
+});
+
+// Overrides the config's default seeded storageState (see
+// playwright.config.ts) back to empty — these are the only tests that
+// need the tour's actual first-launch behavior, everything else needs it
+// *out of the way*.
+test.describe("first launch", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("the onboarding tour walks through all steps, waits for real Afficher/Comparer clicks, and never reappears once finished", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.locator(".onboarding-card")).toBeVisible();
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 1/7");
+    // Step 1 spotlights the place search field specifically.
+    await expect(page.locator(".onboarding-highlight")).toBeVisible();
+
+    await page.click(".onboarding-card button:has-text('Next')");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 2/7");
+    await page.click(".onboarding-card button:has-text('Next')");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 3/7");
+
+    // The "Afficher" step has no Next — it waits for the real click, since
+    // the rest of the tour's targets don't exist until a comparison is
+    // actually running.
+    await expect(page.locator(".onboarding-card button:has-text('Next')")).toHaveCount(0);
+    await page.fill("#date1", "2026-06-01");
+    await page.click("#display-btn");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 4/7", { timeout: 15000 });
+
+    // The "Comparez" step also waits for a real click — its target covers
+    // both #add-compare-date-btn and #compare-btn, so the spotlight should
+    // follow the button across that sub-transition without losing it.
+    await expect(page.locator(".onboarding-card button:has-text('Next')")).toHaveCount(0);
+    await expect(page.locator(".onboarding-highlight")).toBeVisible();
+    await page.click("#add-compare-date-btn");
+    await expect(page.locator(".onboarding-highlight")).toBeVisible();
+    await page.fill("#date2", "2026-07-08");
+    await page.click("#compare-btn");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 5/7", { timeout: 20000 });
+
+    await page.click(".onboarding-card button:has-text('Next')");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 6/7");
+    await page.click(".onboarding-card button:has-text('Next')");
+    await expect(page.locator(".onboarding-step-count")).toHaveText("Step 7/7");
+
+    await page.click(".onboarding-card button:has-text('Finish')");
+    await expect(page.locator(".onboarding-card")).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("s2compare-onboarding-seen"))).toBe("1");
+
+    // Persisted — a later visit (reload) doesn't show it again.
+    await page.reload();
+    await expect(page.locator(".onboarding-card")).toHaveCount(0);
+  });
+
+  test("Skip dismisses the tour immediately and marks it as seen", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".onboarding-card")).toBeVisible();
+    await page.click(".onboarding-card button:has-text('Skip')");
+    await expect(page.locator(".onboarding-card")).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("s2compare-onboarding-seen"))).toBe("1");
+  });
+
+  test("a shared comparison link does not auto-start the tour", async ({ page }) => {
+    await page.goto("/?lat=48.8566&lng=2.3522&zoom=13&d1=2026-06-01&d2=2026-07-08&cmp=2");
+    await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+    await expect(page.locator(".onboarding-card")).toHaveCount(0);
+  });
+});

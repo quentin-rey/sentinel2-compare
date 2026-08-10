@@ -4,9 +4,10 @@ import { useTranslation } from "../../hooks/useLanguage";
 interface Props {
   open: boolean;
   onClose: () => void;
+  onReplayTour: () => void;
 }
 
-export function InfoModal({ open, onClose }: Props) {
+export function InfoModal({ open, onClose, onReplayTour }: Props) {
   const { lang, t } = useTranslation();
   // Only close on a click that both started and ended directly on the
   // backdrop — a plain onClick check would also fire after dragging (e.g.
@@ -72,6 +73,16 @@ export function InfoModal({ open, onClose }: Props) {
             </p>
           </>
         )}
+        <button
+          id="info-modal-replay-tour"
+          className="btn-secondary"
+          onClick={() => {
+            onClose();
+            onReplayTour();
+          }}
+        >
+          {t("onboardingReplayBtn")}
+        </button>
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { useBaseMap } from "./hooks/useBaseMap";
 import { useCompareMaps, type CompareOpts, type CompareView as CompareViewParams } from "./hooks/useCompareMaps";
 import { useTheme } from "./hooks/useTheme";
 import { useMenuCollapsed } from "./hooks/useMenuCollapsed";
+import { useOnboarding } from "./hooks/useOnboarding";
 import { useToasts } from "./hooks/useToasts";
 import { useDisablePinchZoom } from "./hooks/useDisablePinchZoom";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
@@ -41,6 +42,7 @@ import { AccordionSection } from "./components/AccordionSection";
 import { ExportSection, type ExportTarget } from "./components/ExportSection";
 import { ToastContainer } from "./components/ToastContainer";
 import { InfoModal } from "./components/modals/InfoModal";
+import { OnboardingTour } from "./components/OnboardingTour";
 import { ShortcutsModal } from "./components/modals/ShortcutsModal";
 import { ExportSettingsModal, type ExportKind, type ExportConfirmOptions } from "./components/modals/ExportSettingsModal";
 import { ExportDiscardConfirmModal } from "./components/modals/ExportDiscardConfirmModal";
@@ -144,6 +146,22 @@ export default function App() {
   useDisablePinchZoom();
   const place = useGeocodeSearch();
   const { t } = useTranslation();
+  const onboarding = useOnboarding();
+  const [tourActive, setTourActive] = useState(false);
+
+  function startTour() {
+    if (menu.collapsed) menu.toggleMenu();
+    setTourActive(true);
+  }
+
+  // Auto-starts once, ever, per browser (issue #31) — but not when a
+  // shared link is restoring an existing comparison (initial.autoStage !==
+  // "idle"): spotlighting "search a place" over a comparison that's
+  // already mid-load would be confusing, not helpful.
+  useEffect(() => {
+    if (!onboarding.hasSeenOnboarding && initial.autoStage === "idle") startTour();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function setStatus(message: string, isError = false) {
     setStatusState({ message, isError });
@@ -765,6 +783,31 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showDiscardConfirm, pendingExportKind, activeModal, compareMaps.isOpen, compareMaps.isComparing, menu]);
 
+  // Layers/Export/Partage aren't in the DOM yet at tour-start (they only
+  // render once compareMaps.isOpen — see the accordion sections below), so
+  // the "Afficher" and "Comparer" steps wait for a real click instead of
+  // offering a "Suivant" that would just skip past the very thing that
+  // makes them exist — see OnboardingStep's waitForSelector and
+  // OnboardingTour's isWaiting state. The "Comparer" step's target covers
+  // both of #add-compare-date-btn/#compare-btn (only one is ever in the
+  // DOM at once — clicking the former reveals the latter), so the
+  // spotlight follows the button across that sub-transition within the
+  // one step instead of losing its target the moment the first is clicked.
+  const onboardingSteps = [
+    { target: "#lieu-section", title: t("onboardingStep1Title"), body: t("onboardingStep1Body"), onEnter: () => setOpenSection("lieu") },
+    { target: "#dates-section", title: t("onboardingStep2Title"), body: t("onboardingStep2Body"), onEnter: () => setDatesOpen(true) },
+    { target: "#display-btn", title: t("onboardingStep3Title"), body: t("onboardingStep3Body"), waitForSelector: "#layers-section" },
+    {
+      target: "#add-compare-date-btn, #compare-btn",
+      title: t("onboardingStep4Title"),
+      body: t("onboardingStep4Body"),
+      waitForSelector: "#close-btn",
+    },
+    { target: "#layers-section", title: t("onboardingStep5Title"), body: t("onboardingStep5Body"), onEnter: () => setOpenSection("layers") },
+    { target: "#export-section", title: t("onboardingStep6Title"), body: t("onboardingStep6Body"), onEnter: () => setOpenSection("export") },
+    { target: "#partage-section", title: t("onboardingStep7Title"), body: t("onboardingStep7Body"), onEnter: () => setOpenSection("partage") },
+  ];
+
   return (
     <>
       <div id="map" ref={baseMap.containerRef} className={compareMaps.isOpen ? "hidden" : ""} />
@@ -899,7 +942,16 @@ export default function App() {
         </div>
       </div>
 
-      <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} />
+      <InfoModal open={activeModal === "info"} onClose={() => setActiveModal(null)} onReplayTour={startTour} />
+      {tourActive && (
+        <OnboardingTour
+          steps={onboardingSteps}
+          onFinish={() => {
+            setTourActive(false);
+            onboarding.markOnboardingSeen();
+          }}
+        />
+      )}
       <ShortcutsModal open={activeModal === "shortcuts"} onClose={() => setActiveModal(null)} />
       <ExportSettingsModal
         kind={pendingExportKind}
