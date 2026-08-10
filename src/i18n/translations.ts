@@ -96,6 +96,28 @@ export interface Translations {
   kbdEscape: string;
   kbdShift: string;
 
+  // Onboarding tour (issue #31)
+  onboardingReplayBtn: string;
+  onboardingStepCount: (p: { current: number; total: number }) => string;
+  onboardingSkip: string;
+  onboardingBack: string;
+  onboardingNext: string;
+  onboardingFinish: string;
+  onboardingStep1Title: string;
+  onboardingStep1Body: string;
+  onboardingStep2Title: string;
+  onboardingStep2Body: string;
+  onboardingStep3Title: string;
+  onboardingStep3Body: string;
+  onboardingStep4Title: string;
+  onboardingStep4Body: string;
+  onboardingStep5Title: string;
+  onboardingStep5Body: string;
+  onboardingStep6Title: string;
+  onboardingStep6Body: string;
+  onboardingStep7Title: string;
+  onboardingStep7Body: string;
+
   // Export settings modal
   exportOptionsTitle: string;
   sizeLabel: string;
@@ -247,6 +269,29 @@ export const translations: Record<"fr" | "en", Translations> = {
     kbdEscape: "Échap",
     kbdShift: "Maj",
 
+    onboardingReplayBtn: "Revoir la visite guidée",
+    onboardingStepCount: ({ current, total }) => `Étape ${current}/${total}`,
+    onboardingSkip: "Passer",
+    onboardingBack: "Précédent",
+    onboardingNext: "Suivant",
+    onboardingFinish: "Terminer",
+    onboardingStep1Title: "Cherchez un lieu",
+    onboardingStep1Body: "Tapez le nom d'une ville ou d'une adresse pour centrer la carte dessus.",
+    onboardingStep2Title: "Choisissez une date",
+    onboardingStep2Body: "Sélectionnez la date à afficher, et éventuellement le rendu (couleurs naturelles, fausses couleurs, SWIR...).",
+    onboardingStep3Title: "Affichez l'image",
+    onboardingStep3Body: "Cliquez sur «Afficher» pour continuer — la visite reprendra automatiquement une fois l'image affichée.",
+    onboardingStep4Title: "Comparez avec une autre date",
+    onboardingStep4Body:
+      "Cliquez sur «Comparer avec une autre date ?», choisissez une deuxième date, puis sur «Comparer» — la visite continuera automatiquement une fois la comparaison affichée.",
+    onboardingStep5Title: "Calques",
+    onboardingStep5Body: "Affichez les départements ou les villes en surimpression sur la carte.",
+    onboardingStep6Title: "Export",
+    onboardingStep6Body: "Exportez l'image en PNG/JPEG, ou générez une animation avant/après en GIF ou vidéo.",
+    onboardingStep7Title: "Partage",
+    onboardingStep7Body:
+      "Copiez un lien vers exactement cette vue (lieu, dates, rendu) pour la partager. Vous pouvez revoir cette visite à tout moment via le bouton ⓘ.",
+
     exportOptionsTitle: "Options d'export",
     sizeLabel: "Taille",
     sizeOriginal: "Originale (résolution de l'écran)",
@@ -393,6 +438,28 @@ export const translations: Record<"fr" | "en", Translations> = {
     shortcutRecenter: "Double-click the handle to recenter it",
     kbdEscape: "Esc",
     kbdShift: "Shift",
+
+    onboardingReplayBtn: "Replay the guided tour",
+    onboardingStepCount: ({ current, total }) => `Step ${current}/${total}`,
+    onboardingSkip: "Skip",
+    onboardingBack: "Back",
+    onboardingNext: "Next",
+    onboardingFinish: "Finish",
+    onboardingStep1Title: "Search for a place",
+    onboardingStep1Body: "Type a city or address to center the map on it.",
+    onboardingStep2Title: "Pick a date",
+    onboardingStep2Body: "Pick the date to display, and optionally the render mode (true color, false color, SWIR...).",
+    onboardingStep3Title: "Show the image",
+    onboardingStep3Body: "Click «Display» to continue — the tour picks back up automatically once the image is shown.",
+    onboardingStep4Title: "Compare with another date",
+    onboardingStep4Body:
+      "Click «Compare with another date?», pick a second date, then «Compare» — the tour continues automatically once the comparison is shown.",
+    onboardingStep5Title: "Layers",
+    onboardingStep5Body: "Overlay département boundaries or city labels on the map.",
+    onboardingStep6Title: "Export",
+    onboardingStep6Body: "Export the image as PNG/JPEG, or generate a before/after animation as a GIF or video.",
+    onboardingStep7Title: "Share",
+    onboardingStep7Body: "Copy a link to exactly this view (place, dates, render mode) to share it. You can replay this tour anytime from the ⓘ button.",
 
     exportOptionsTitle: "Export options",
     sizeLabel: "Size",

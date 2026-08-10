@@ -883,6 +883,78 @@ kbd {
   border-bottom: none;
 }
 
+/* --- Onboarding tour (issue #31) ---------------------------------------- */
+
+/* Above #navbar's z-index: 100 — a highlighted target can sit right next
+   to (or, on narrow viewports where #panel becomes a bottom sheet, well
+   away from) the navbar, and either way this must stay on top. Deliberately
+   pointer-events: none on both the highlight and the plain backdrop: the
+   tour narrates each step but doesn't lock the rest of the page — a user
+   who wants to actually use the highlighted control (or anything else)
+   mid-tour can, rather than fighting a click-blocking overlay. */
+.onboarding-highlight,
+.onboarding-backdrop {
+  position: fixed;
+  z-index: 200;
+  pointer-events: none;
+}
+
+.onboarding-highlight {
+  border-radius: 8px;
+  /* A huge, blur-free spread on an otherwise-transparent box: everywhere
+     *outside* this element's own border-box gets covered by the shadow,
+     while the box itself stays a clear "hole" showing the real,
+     undimmed target underneath — the standard spotlight-cutout trick,
+     no clip-path/SVG mask needed. */
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  transition: left 0.2s ease, top 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.onboarding-backdrop {
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.onboarding-card {
+  position: fixed;
+  z-index: 201;
+  max-width: none;
+  width: 280px;
+  transition: left 0.2s ease, top 0.2s ease;
+}
+
+.onboarding-card--centered {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.onboarding-step-count {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.onboarding-actions {
+  margin-top: 16px;
+}
+
+/* .modal button.btn-secondary's own margin (meant for a button appearing
+   amid prose, like ExportDiscardConfirmModal's, not sitting in a button
+   row) ties in specificity with .modal .row button's margin-top — same 2
+   classes + 1 tag each — so which one actually wins for a secondary button
+   inside a row came down to source order, leaving Passer/Précédent
+   sitting 10px higher than Suivant/Terminer in the same row. Explicit
+   here (3 classes + 1 tag beats both unambiguously) instead of depending
+   on that. */
+.onboarding-card .row button.btn-secondary {
+  margin-top: 4px;
+  margin-bottom: 0;
+}
+
 /* --- Accordion sections (Lieu / Dates & rendu / Export / Partage) ------ */
 
 .accordion-section {
