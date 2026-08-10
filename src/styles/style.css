@@ -1207,3 +1207,53 @@ kbd {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* --- MapLibre control theming (issue #53) ------------------------------- */
+
+/* The zoom +/- buttons (CompareView.tsx) and the scale bar
+   (NiceScaleControl, lib/scaleControl.ts) both intentionally reuse
+   maplibre-gl.css's own .maplibregl-ctrl-* classes for free, consistent
+   styling — but that stylesheet (imported before this one, in main.tsx)
+   is static/unthemed: hardcoded white backgrounds and #333 text, so it
+   never followed this app's light/dark toggle. Repointing the same
+   properties at this app's own CSS variables (already resolved to the
+   right theme by the :root rules at the top of this file) fixes both at
+   once, rather than authoring a second theme system just for these two
+   controls. `:not(:empty)` on the first selector matches maplibre-gl.css's
+   own selector for that rule exactly — our group is never actually empty,
+   but without it our box-shadow loses to theirs on specificity regardless
+   of import order. */
+.maplibregl-ctrl-group:not(:empty) {
+  background: var(--bg-panel);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid var(--border);
+}
+
+.maplibregl-ctrl button:not(:disabled):hover {
+  background-color: var(--hover-bg);
+}
+
+.maplibregl-ctrl-scale {
+  background: var(--bg-panel);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+/* The zoom icons are baked-in SVG background-images (#333 fill, set at
+   maplibre-gl's own build time) — can't be repointed at a CSS variable, so
+   inverting them in dark mode (where the button background above is now
+   dark) is the simplest way to keep them legible. Same dual light/dark
+   guard as this file's :root overrides: prefers-color-scheme unless
+   overridden by the manual toggle, then the manual toggle itself. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .maplibregl-ctrl-icon {
+    filter: invert(1);
+  }
+}
+
+:root[data-theme="dark"] .maplibregl-ctrl-icon {
+  filter: invert(1);
+}
