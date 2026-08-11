@@ -9,7 +9,8 @@
 // rotated/tilted camera the way reading back the actual WebGL framebuffer
 // can. Callers should fall back to the normal capture export when
 // bearing/pitch aren't both zero — see App.tsx's handleExportConfirm.
-import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import type { SceneAssets } from "./cogRaster";
 import type { RenderMode } from "./config";
 import type { CogRegionRequest, CogTileResponse } from "../workers/cogTile.worker";
