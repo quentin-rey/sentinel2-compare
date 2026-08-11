@@ -1,0 +1,25 @@
+# Deliberately doesn't run `npm run test:e2e`: those tests drive real
+# comparisons against the live Earth Search/S3 APIs (no mocking), which has
+# repeatedly caused failures unrelated to code correctness — making e2e a
+# required merge gate would block legitimate PRs on external network
+# flakiness instead of catching real regressions. Run e2e manually before
+# merging anything that touches comparison/render logic instead.
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npm run test:unit
