@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import maplibregl, { type Map as MapLibreMap } from "maplibre-gl";
+import * as maplibregl from "maplibre-gl";
+import type { Map as MapLibreMap } from "maplibre-gl";
 import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
 import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
@@ -260,7 +261,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         bearing,
         pitch,
         interactive: true,
-        preserveDrawingBuffer: true,
+        canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       const mapB = new maplibregl.Map({
         container: mapBContainerRef.current,
@@ -270,7 +271,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         bearing,
         pitch,
         interactive: true,
-        preserveDrawingBuffer: true,
+        canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       // Only on mapA — mapA/mapB stay in sync (same center/zoom), and a
       // second ScaleControl on mapB would just draw an identical scale bar
@@ -389,7 +390,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         bearing,
         pitch,
         interactive: true,
-        preserveDrawingBuffer: true,
+        canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       mapA.addControl(new NiceScaleControl({ maxWidth: 100 }), "bottom-left");
       inst.mapA = mapA;

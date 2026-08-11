@@ -4,7 +4,10 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    /* "geojson" makes the ambient global `GeoJSON` namespace (lib/adminLayers.ts)
+       available explicitly — maplibre-gl <6 pulled it in as a side effect of its
+       own bundled types referencing @types/geojson, which v6 stopped doing. */
+    "types": ["vite/client", "geojson"],
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
