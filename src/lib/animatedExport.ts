@@ -105,6 +105,17 @@ function renderFrame(mapA: MapLibreMap, mapB: MapLibreMap, style: AnimationStyle
   return drawWatermark(frame);
 }
 
+// Only the "opacity" crossfade actually blends the two images uniformly
+// across the whole frame — "slide" reveals them side by side instead, where
+// both dates are already genuinely, simultaneously visible (just spatially
+// split) for nearly the whole sweep, so fading either readout there would
+// dim a label whose image is still mostly on screen. Static (both fully
+// opaque) is the correct read for "slide"; only "opacity" needs its labels
+// to track the blend.
+function labelOpacitiesFor(style: AnimationStyle, wave: number): { beforeOpacity: number; afterOpacity: number } {
+  return style === "opacity" ? { beforeOpacity: 1 - wave, afterOpacity: wave } : { beforeOpacity: 1, afterOpacity: 1 };
+}
+
 function generateFrames(
   mapA: MapLibreMap,
   mapB: MapLibreMap,
@@ -119,9 +130,10 @@ function generateFrames(
   const holdFraction = holdFractionFor(durationMs, holdMs);
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
-    const frame = renderFrame(mapA, mapB, style, i / frameCount, holdFraction, maxWidth);
+    const t = i / frameCount;
+    const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
     if (scale) drawScaleBar(frame, scale);
-    if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
+    if (labels) drawOverlayLabels(frame, { ...labels, side: "both", ...labelOpacitiesFor(style, waveWithHold(t, holdFraction)) });
     frames.push(frame);
   }
   return frames;
@@ -264,7 +276,7 @@ export async function exportCompareWebm({
       const t = (elapsed % durationMs) / durationMs;
       const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
       if (scale) drawScaleBar(frame, scale);
-      if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
+      if (labels) drawOverlayLabels(frame, { ...labels, side: "both", ...labelOpacitiesFor(style, waveWithHold(t, holdFraction)) });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0);
       onProgress?.(Math.min(1, elapsed / durationMs));
