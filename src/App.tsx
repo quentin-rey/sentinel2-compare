@@ -670,7 +670,7 @@ export default function App() {
         setProgressText(t("generating", { label, percent }));
         setProgressPercent(percent);
       };
-      const style = options.animationStyle ?? "slide";
+      const style = options.animationStyle ?? "opacity";
       const blob =
         kind === "gif"
           ? await exportCompareGif({ mapA: inst.mapA, mapB: inst.mapB, style, durationMs: options.durationMs, fps: options.fps, holdMs: options.holdMs, maxWidth: options.maxWidth, quality: options.quality, labels, scale, onProgress })
