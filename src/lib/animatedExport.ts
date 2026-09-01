@@ -1,10 +1,10 @@
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { compositeCanvas, blendCanvas, drawOverlayLabels, drawWatermark, drawScaleBar, type ExportLabels, type ExportScaleInfo } from "./exportImage";
 
-// "slide" (default): the same before/after sweep the on-screen comparison
-// slider makes. "opacity": crossfades between the two dates instead —
-// changed areas fade smoothly rather than being revealed by a moving edge
-// (issue #23).
+// "opacity" (default): crossfades between the two dates — changed areas
+// fade smoothly rather than being revealed by a moving edge (issue #23).
+// "slide": the same before/after sweep the on-screen comparison slider
+// makes.
 export type AnimationStyle = "slide" | "opacity";
 
 // gif.js (https://github.com/jnordberg/gif.js) is a UMD/global-based library
@@ -105,6 +105,17 @@ function renderFrame(mapA: MapLibreMap, mapB: MapLibreMap, style: AnimationStyle
   return drawWatermark(frame);
 }
 
+// Only the "opacity" crossfade actually blends the two images uniformly
+// across the whole frame — "slide" reveals them side by side instead, where
+// both dates are already genuinely, simultaneously visible (just spatially
+// split) for nearly the whole sweep, so fading either readout there would
+// dim a label whose image is still mostly on screen. Static (both fully
+// opaque) is the correct read for "slide"; only "opacity" needs its labels
+// to track the blend.
+function labelOpacitiesFor(style: AnimationStyle, wave: number): { beforeOpacity: number; afterOpacity: number } {
+  return style === "opacity" ? { beforeOpacity: 1 - wave, afterOpacity: wave } : { beforeOpacity: 1, afterOpacity: 1 };
+}
+
 function generateFrames(
   mapA: MapLibreMap,
   mapB: MapLibreMap,
@@ -119,9 +130,10 @@ function generateFrames(
   const holdFraction = holdFractionFor(durationMs, holdMs);
   const frames: HTMLCanvasElement[] = [];
   for (let i = 0; i < frameCount; i++) {
-    const frame = renderFrame(mapA, mapB, style, i / frameCount, holdFraction, maxWidth);
+    const t = i / frameCount;
+    const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
     if (scale) drawScaleBar(frame, scale);
-    if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
+    if (labels) drawOverlayLabels(frame, { ...labels, side: "both", ...labelOpacitiesFor(style, waveWithHold(t, holdFraction)) });
     frames.push(frame);
   }
   return frames;
@@ -142,8 +154,8 @@ interface ExportCompareGifOptions {
 }
 
 /**
- * Renders a looping before/after sweep (or, with `style: "opacity"`, a
- * crossfade — see AnimationStyle) as an animated GIF, entirely in the
+ * Renders a looping before/after crossfade (or, with `style: "slide"`, a
+ * sweep — see AnimationStyle) as an animated GIF, entirely in the
  * browser (encoding runs in a Web Worker). Returns a Blob (image/gif).
  *
  * `quality` is a 0-1 fraction (higher = better/heavier), matching the JPEG
@@ -153,7 +165,7 @@ interface ExportCompareGifOptions {
 export async function exportCompareGif({
   mapA,
   mapB,
-  style = "slide",
+  style = "opacity",
   durationMs = 2400,
   fps = 17,
   holdMs = DEFAULT_HOLD_MS,
@@ -206,8 +218,8 @@ interface ExportCompareWebmOptions {
 }
 
 /**
- * Records a looping before/after sweep (or, with `style: "opacity"`, a
- * crossfade — see AnimationStyle) as a short WebM video using the
+ * Records a looping before/after crossfade (or, with `style: "slide"`, a
+ * sweep — see AnimationStyle) as a short WebM video using the
  * MediaRecorder API (a canvas is redrawn in real time and captured via
  * `canvas.captureStream()`). Returns a Blob (video/webm), or throws if the
  * browser doesn't support WebM recording (notably some Safari versions).
@@ -215,7 +227,7 @@ interface ExportCompareWebmOptions {
 export async function exportCompareWebm({
   mapA,
   mapB,
-  style = "slide",
+  style = "opacity",
   durationMs = 3000,
   fps = 24,
   holdMs = DEFAULT_HOLD_MS,
@@ -264,7 +276,7 @@ export async function exportCompareWebm({
       const t = (elapsed % durationMs) / durationMs;
       const frame = renderFrame(mapA, mapB, style, t, holdFraction, maxWidth);
       if (scale) drawScaleBar(frame, scale);
-      if (labels) drawOverlayLabels(frame, { ...labels, side: "both" });
+      if (labels) drawOverlayLabels(frame, { ...labels, side: "both", ...labelOpacitiesFor(style, waveWithHold(t, holdFraction)) });
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(frame, 0, 0);
       onProgress?.(Math.min(1, elapsed / durationMs));

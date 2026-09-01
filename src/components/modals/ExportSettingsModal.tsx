@@ -40,7 +40,7 @@ export interface ExportConfirmOptions {
   // Render fresh from the satellite data at maxWidth instead of capturing
   // the on-screen canvas — see lib/exportHighRes.ts.
   highRes?: boolean;
-  // GIF/WebM only — "slide" (default) or "opacity" crossfade, see
+  // GIF/WebM only — "opacity" crossfade (default) or "slide", see
   // lib/animatedExport.ts's AnimationStyle.
   animationStyle?: AnimationStyle;
 }
@@ -67,7 +67,7 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
   const [quality, setQuality] = useState(85);
   const [duration, setDuration] = useState(3);
   const [fps, setFps] = useState(20);
-  const [animStyle, setAnimStyle] = useState<AnimationStyle>("slide");
+  const [animStyle, setAnimStyle] = useState<AnimationStyle>("opacity");
   const [hold, setHold] = useState(DEFAULT_HOLD_SECONDS);
   const [filename, setFilename] = useState("");
   const [filenameEdited, setFilenameEdited] = useState(false);
@@ -87,10 +87,10 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
     setQuality(85);
     setDuration(defaultDuration);
     setFps(defaultFps);
-    setAnimStyle("slide");
+    setAnimStyle("opacity");
     setHold(DEFAULT_HOLD_SECONDS);
     setFilenameEdited(false);
-    setFilename(computeFilename(kind, defaultSize, 85, defaultDuration, defaultFps, "slide"));
+    setFilename(computeFilename(kind, defaultSize, 85, defaultDuration, defaultFps, "opacity"));
     // computeFilename intentionally excluded: it closes over live app state
     // (mode/target/lastRenderState) and is expected to change identity often;
     // this effect should only re-run when the export *kind* changes.
@@ -165,8 +165,8 @@ export function ExportSettingsModal({ kind, computeFilename, onRequestClose, onD
             <label>
               {t("animStyleLabel")}
               <select value={animStyle} onChange={(e) => setAnimStyle(e.target.value as AnimationStyle)}>
-                <option value="slide">{t("animStyleSlide")}</option>
                 <option value="opacity">{t("animStyleOpacity")}</option>
+                <option value="slide">{t("animStyleSlide")}</option>
               </select>
             </label>
             <div className="row">
