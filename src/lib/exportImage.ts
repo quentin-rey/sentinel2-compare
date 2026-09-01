@@ -168,6 +168,7 @@ function drawReadoutBox(
   bottomY: number,
   align: "left" | "right",
   fontSize: number,
+  opacity = 1,
 ): number {
   const labelFontSize = Math.round(fontSize * 0.62);
   const paddingX = Math.round(fontSize * 0.55);
@@ -186,6 +187,16 @@ function drawReadoutBox(
   const boxX = align === "right" ? x - boxWidth : x;
   const boxY = bottomY - boxHeight;
 
+  // Scales the whole box (background + both text lines) by `opacity` in one
+  // go, rather than baking it into each fillStyle's own alpha channel —
+  // used by animatedExport.ts's crossfade style to fade each readout in/out
+  // in step with how much of its own image is actually blended into the
+  // frame at that point in the loop (issue: labels used to stay fully
+  // opaque the whole time, even at the instant the frame was 100% the
+  // other date).
+  ctx.save();
+  ctx.globalAlpha *= opacity;
+
   ctx.fillStyle = "rgba(12,12,14,0.72)";
   ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 
@@ -201,6 +212,7 @@ function drawReadoutBox(
   ctx.fillStyle = "#fff";
   ctx.fillText(value, boxX + paddingX, lineY);
 
+  ctx.restore();
   return boxHeight;
 }
 
@@ -231,11 +243,15 @@ function drawReadoutLine(ctx: CanvasRenderingContext2D, text: string, centerX: n
  * self-explanatory once shared outside the app. `side` picks which readouts
  * apply: "before", "after", or "both" (default). `before`/`after` are each
  * `{ label, value }` — `label` is dropped (empty string) for a single-side
- * export where "AVANT"/"APRÈS" would be redundant.
+ * export where "AVANT"/"APRÈS" would be redundant. `beforeOpacity`/
+ * `afterOpacity` (both default 1) let a caller fade either readout — used by
+ * animatedExport.ts's crossfade style so each date's label tracks how much
+ * of its own image is actually blended into the current frame, instead of
+ * both staying fully opaque even when the frame is 100% the other date.
  */
 export function drawOverlayLabels(
   canvas: HTMLCanvasElement,
-  { before, after, attribution, side = "both" }: ExportLabels & { side?: ExportSide } = {},
+  { before, after, attribution, side = "both", beforeOpacity = 1, afterOpacity = 1 }: ExportLabels & { side?: ExportSide; beforeOpacity?: number; afterOpacity?: number } = {},
 ): HTMLCanvasElement {
   const ctx = canvas.getContext("2d")!;
   const { width, height } = canvas;
@@ -247,10 +263,10 @@ export function drawOverlayLabels(
   // aligned row instead of the attribution floating above the other two.
   const bottomY = height - margin;
   if ((side === "before" || side === "both") && before?.value) {
-    drawReadoutBox(ctx, before.label, before.value, margin, bottomY, "left", fontSize);
+    drawReadoutBox(ctx, before.label, before.value, margin, bottomY, "left", fontSize, beforeOpacity);
   }
   if ((side === "after" || side === "both") && after?.value) {
-    drawReadoutBox(ctx, after.label, after.value, width - margin, bottomY, "right", fontSize);
+    drawReadoutBox(ctx, after.label, after.value, width - margin, bottomY, "right", fontSize, afterOpacity);
   }
   if (attribution) {
     drawReadoutLine(ctx, attribution, width / 2, bottomY, attributionFontSize);
