@@ -152,6 +152,22 @@ function bboxOverlapArea(a: Bbox, b: Bbox): number {
   return (east - west) * (north - south);
 }
 
+function bboxCenter(b: Bbox): [number, number] {
+  return [(b[0] + b[2]) / 2, (b[1] + b[3]) / 2];
+}
+
+// Longitude degrees are shorter on the ground the further from the equator
+// — scaling by cos(latitude) keeps "distance" roughly proportional to real
+// ground distance instead of exaggerating east-west spread at high
+// latitudes. Only needs to be good enough to rank tiles relative to each
+// other, not geodesically exact.
+function centerDistanceSq(bboxCenterPoint: [number, number], tileCenter: [number, number]): number {
+  const latRad = (bboxCenterPoint[1] * Math.PI) / 180;
+  const dx = (tileCenter[0] - bboxCenterPoint[0]) * Math.cos(latRad);
+  const dy = tileCenter[1] - bboxCenterPoint[1];
+  return dx * dx + dy * dy;
+}
+
 // Among same-tile candidates (normally just one, but a tile can be
 // reprocessed under a new baseline, yielding two STAC items for the same
 // day+tile), picks whichever footprint overlaps the query bbox the most,
@@ -172,26 +188,38 @@ function chooseBestCandidate(bbox: Bbox, candidates: StacFeature[]): StacFeature
 // coastline for a storm) can span 30-40+ MGRS tiles — each one needs its
 // own COG metadata fetch, band reads and per-pixel reprojection, and that
 // fan-out made the app effectively hang in production (never finishing the
-// initial render) rather than just being slow. 12 tiles is already a huge
-// mosaic (~4x the original single-scene footprint per side) and comfortably
-// covers the "wide event, not the whole continent" use case that motivated
-// mosaicking in the first place (issue #27) without the unbounded cost.
+// initial render) rather than just being slow.
+//
+// Tested at 24 against a real 47-candidate case: it did finish (unlike the
+// unbounded version), but took ~2 minutes — long enough to read as broken
+// even though it isn't. This app is scoped for zoomed-in comparisons, not
+// continent/storm-scale mosaics; 12 tiles already comfortably covers a
+// same-day mosaic smoothing over a handful of adjacent tiles (e.g. a
+// viewport straddling the 31UDP/31UDQ seam through Paris), which is the
+// actual scope mosaicking was built for (issue #27). Scanning a whole storm
+// system client-side, tile by tile, just isn't a good fit for this
+// architecture — a hurricane-scale view is a real feature idea, but would
+// need a different approach (e.g. server-side pre-rendering) to be fast
+// enough, not a bigger client-side cap.
 const MAX_MOSAIC_TILES = 12;
 
 // A viewport straddling two adjacent MGRS tiles (common near a tile
 // boundary — e.g. central Paris sits right on the 31UDP/31UDQ seam) can get
 // same-day features from *both* tiles (issue #27). Returns one winning
 // candidate *per tile*, capped at MAX_MOSAIC_TILES and prioritized by
-// overlap with the query viewport — the renderer (cogRaster.ts's
+// distance from the query viewport's center — the renderer (cogRaster.ts's
 // renderRegionRGBA) composites every tile it's given, per output pixel, so
 // handing it every same-day tile instead of a single overall "best" one
 // fills in the rest of the requested view instead of leaving it blank.
-// Deliberately same-day only: mixing tiles from *different* days into one
-// mosaic would silently blend two different acquisition dates into a
-// single "before"/"after" image, undermining the exact-date-to-exact-date
-// comparison this app promises (see the discussion on issue #27) — a tile
-// with no data on this exact day is simply absent from the result, not
-// backfilled from another day.
+// Sorting by distance-from-center rather than raw overlap area means the
+// mosaic grows outward from where the user actually asked to look, instead
+// of favoring whichever candidate tiles simply happen to have the largest
+// footprint. Deliberately same-day only: mixing tiles from *different* days
+// into one mosaic would silently blend two different acquisition dates
+// into a single "before"/"after" image, undermining the exact-date-to-
+// exact-date comparison this app promises (see the discussion on issue
+// #27) — a tile with no data on this exact day is simply absent from the
+// result, not backfilled from another day.
 function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
   const byTile = new Map<string, StacFeature[]>();
   for (const c of candidates) {
@@ -202,9 +230,10 @@ function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
   }
   const winners = [...byTile.values()].map((group) => chooseBestCandidate(bbox, group));
   if (winners.length <= MAX_MOSAIC_TILES) return winners;
+  const center = bboxCenter(bbox);
   return winners
     .slice()
-    .sort((a, b) => bboxOverlapArea(bbox, b.bbox) - bboxOverlapArea(bbox, a.bbox))
+    .sort((a, b) => centerDistanceSq(center, bboxCenter(a.bbox)) - centerDistanceSq(center, bboxCenter(b.bbox)))
     .slice(0, MAX_MOSAIC_TILES);
 }
 
