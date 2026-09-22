@@ -80,21 +80,39 @@ interface StacFeature {
 // enough, causing a resolved side to silently never render). Not a hard
 // guarantee either way, which is why getSceneAssets() below also falls
 // back to re-fetching a single evicted item directly rather than failing.
-const ITEM_CACHE_LIMIT = 500;
+const ITEM_CACHE_LIMIT = 1000;
 const itemCache = new Map<string, StacFeature>();
+
+// Asset keys used by lib/config.ts's RENDER_MODE_BANDS — must list every
+// key that appears in any RENDER_MODE_BANDS entry, or getSceneAssets()
+// silently omits that band's href and rendering fails with "Asset manquant".
+const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "nir08", "rededge1", "swir16", "swir22", "scl"];
+
+// A raw Earth Search item is ~20 KB of JSON (dozens of assets with their
+// full metadata), and a paginated search can now bring in hundreds of them,
+// so only the fields this module actually reads are kept in the cache.
+function slimItem(feature: StacFeature): StacFeature {
+  const assets: StacFeature["assets"] = {};
+  for (const key of BAND_ASSET_KEYS) {
+    const href = feature.assets[key]?.href;
+    if (href) assets[key] = { href };
+  }
+  const p = feature.properties;
+  return {
+    id: feature.id,
+    bbox: feature.bbox,
+    properties: { datetime: p.datetime, "eo:cloud_cover": p["eo:cloud_cover"], "grid:code": p["grid:code"], "proj:epsg": p["proj:epsg"] },
+    assets,
+  };
+}
 
 function cacheItem(feature: StacFeature): void {
   if (itemCache.size >= ITEM_CACHE_LIMIT && !itemCache.has(feature.id)) {
     const oldest = itemCache.keys().next().value;
     if (oldest !== undefined) itemCache.delete(oldest);
   }
-  itemCache.set(feature.id, feature);
+  itemCache.set(feature.id, slimItem(feature));
 }
-
-// Asset keys used by lib/config.ts's RENDER_MODE_BANDS — must list every
-// key that appears in any RENDER_MODE_BANDS entry, or getSceneAssets()
-// silently omits that band's href and rendering fails with "Asset manquant".
-const BAND_ASSET_KEYS = ["red", "green", "blue", "nir", "nir08", "rededge1", "swir16", "swir22", "scl"];
 
 // Cache miss fallback — fetches this one item directly by id (a single,
 // fast request) rather than failing outright. Makes asset resolution
@@ -237,21 +255,38 @@ function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
     .slice(0, MAX_MOSAIC_TILES);
 }
 
+// Earth Search returns results newest-first, 100 per page (it 502s on
+// anything above 250), so a single page silently dropped the *oldest* days
+// of the window whenever a search matched more than that. E.g. a regional
+// view (~zoom 7) over a ±14-day window matched 327 items, and only the last
+// 9 days came back, so "closest" could pick a day a week off target just
+// because the right one was on page 2. Following the `next` links fixes
+// that; MAX_PAGES bounds the worst case (each page is ~2 MB of item JSON),
+// which only a very zoomed-out view or a very long window ever reaches.
+const PAGE_LIMIT = 100;
+const MAX_PAGES = 5;
+
 async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacFeature[]> {
   const params = new URLSearchParams({
     collections: "sentinel-2-l2a",
     bbox: bbox.join(","),
     datetime: `${start.toISOString()}/${end.toISOString()}`,
-    limit: "100",
+    limit: String(PAGE_LIMIT),
   });
 
-  const res = await fetch(`${EARTH_SEARCH_ENDPOINT}?${params.toString()}`);
-  if (!res.ok) {
-    throw new Error(`Recherche de métadonnées échouée (HTTP ${res.status}).`);
+  const features: StacFeature[] = [];
+  let url: string | undefined = `${EARTH_SEARCH_ENDPOINT}?${params.toString()}`;
+  for (let page = 0; url && page < MAX_PAGES; page++) {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Recherche de métadonnées échouée (HTTP ${res.status}).`);
+    }
+    const json: { features?: StacFeature[]; links?: { rel: string; href: string }[] } = await res.json();
+    const pageFeatures = json.features || [];
+    for (const f of pageFeatures) cacheItem(f);
+    features.push(...pageFeatures);
+    url = pageFeatures.length === PAGE_LIMIT ? json.links?.find((l) => l.rel === "next")?.href : undefined;
   }
-  const json = await res.json();
-  const features: StacFeature[] = json.features || [];
-  for (const f of features) cacheItem(f);
   return features;
 }
 

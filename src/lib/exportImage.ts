@@ -332,12 +332,15 @@ export function drawScaleBar(canvas: HTMLCanvasElement, { metersPerCssPixel, css
   const paddingY = Math.round(fontSize * 0.4);
   const barGap = Math.round(fontSize * 0.3);
   const barHeight = 3;
+  // Set before measureText below, not after: it would otherwise measure
+  // with whatever font the canvas last had (correct today only because
+  // drawWatermark happens to leave the same one set).
+  ctx.font = `600 ${fontSize}px ${MONO_FONT}`;
   const boxWidth = Math.max(barWidth, ctx.measureText(label).width) + paddingX * 2;
   const boxHeight = paddingY * 2 + fontSize + barGap + barHeight;
   const boxX = width - margin - boxWidth;
   const boxY = margin;
 
-  ctx.font = `600 ${fontSize}px ${MONO_FONT}`;
   ctx.fillStyle = "rgba(12,12,14,0.72)";
   ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
 

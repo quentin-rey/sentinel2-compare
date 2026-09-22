@@ -7,11 +7,11 @@ import { test, expect, type Page } from "@playwright/test";
 async function runFullCompare(page: Page, date1: string, date2: string) {
   await page.fill("#date1", date1);
   await page.click("#display-btn");
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await page.click("#add-compare-date-btn");
   await page.fill("#date2", date2);
   await page.click("#compare-btn");
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), undefined, { timeout: 20000 });
 }
 
 test("app loads without console errors", async ({ page }) => {
@@ -67,7 +67,7 @@ test("staged flow: single image displays first, then upgrading to a comparison r
   await page.click("#display-btn");
 
   // Stage single: one full-bleed image, no split/slider yet.
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
   await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
   await expect(page.locator("#swiper")).toHaveClass(/hidden/);
@@ -83,7 +83,7 @@ test("staged flow: single image displays first, then upgrading to a comparison r
   await page.click("#compare-btn");
 
   // Stage split: matches today's existing full comparison experience.
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page.locator("#map-b-wrap")).not.toHaveClass(/hidden/);
   await expect(page.locator("#swiper")).not.toHaveClass(/hidden/);
   await expect(page.locator("#export-section")).toHaveCount(1);
@@ -204,14 +204,14 @@ test("a running comparison survives a refresh, and 'Fermer' steps back to single
   // over from before the reload.
   await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
   await expect(page.locator("#map-b-wrap")).not.toHaveClass(/hidden/);
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-b")?.textContent ?? ""), undefined, { timeout: 20000 });
 
   // "Fermer" only exists in split stage, and steps back to the single-image
   // view (still showing date1) rather than resetting all the way to plain
   // browsing — there's no button for that anymore, only Escape. It stays
   // disabled until both sides' post-reload cold render actually finishes.
   await page.click("#close-btn", { timeout: 40000 });
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page).toHaveURL(/cmp=1/);
   await expect(page).not.toHaveURL(/cmp=2/);
   await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
@@ -219,7 +219,7 @@ test("a running comparison survives a refresh, and 'Fermer' steps back to single
   await expect(page.locator("#add-compare-date-btn")).toBeVisible();
 
   await page.reload();
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
 });
 
@@ -227,14 +227,14 @@ test("a displayed single image survives a refresh without auto-upgrading to a co
   await page.goto("/");
   await page.fill("#date1", "2026-06-01");
   await page.click("#display-btn");
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page).toHaveURL(/cmp=1/);
   await expect(page).not.toHaveURL(/cmp=2/);
 
   await page.reload();
   await expect(page.locator("#compare")).not.toHaveClass(/hidden/);
   await expect(page.locator("#map-b-wrap")).toHaveClass(/hidden/);
-  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+  await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
   await expect(page.locator("#date2")).toHaveCount(0);
   await expect(page.locator("#add-compare-date-btn")).toBeVisible();
 });
@@ -314,7 +314,7 @@ test.describe("first launch", () => {
 
   test("a shared comparison link does not auto-start the tour", async ({ page }) => {
     await page.goto("/?lat=48.8566&lng=2.3522&zoom=13&d1=2026-06-01&d2=2026-07-08&cmp=2");
-    await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), { timeout: 20000 });
+    await page.waitForFunction(() => /\d+% /.test(document.getElementById("label-a")?.textContent ?? ""), undefined, { timeout: 20000 });
     await expect(page.locator(".onboarding-card")).toHaveCount(0);
   });
 });

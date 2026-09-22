@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { RenderMode } from "../lib/config";
 import type { ScenePriority } from "../lib/earthSearch";
 import { useTranslation } from "../hooks/useLanguage";
@@ -56,9 +56,14 @@ export function CompareFormSection({
   // journey starts from the collapsed prompt again instead of leaving the
   // date2 field expanded from a previous round.
   const [wantsCompare, setWantsCompare] = useState(false);
-  useEffect(() => {
+  // Reset while rendering when `stage` changes (React's "adjusting state on
+  // a prop change" pattern), rather than in an effect that would first
+  // commit a render with the stale value.
+  const [prevStage, setPrevStage] = useState(stage);
+  if (stage !== prevStage) {
+    setPrevStage(stage);
     if (stage !== "split") setWantsCompare(false);
-  }, [stage]);
+  }
 
   const showDate2Field = stage === "split" || (stage === "single" && wantsCompare);
   // Quick-date buttons retarget just once, during the "add a second date"

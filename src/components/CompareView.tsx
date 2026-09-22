@@ -25,6 +25,7 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
     isOpen,
     isComparing,
     isResolving,
+    isRendering,
     labelA,
     labelB,
     datesA,
@@ -60,7 +61,6 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
         aria-label={t("compareSliderAriaLabel")}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={50}
         onDoubleClick={resetSlider}
         className={isComparing ? "" : "hidden"}
       />
@@ -87,7 +87,7 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
           </div>
         </div>
       )}
-      <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
+      <div id="compare-loading-banner" className={isResolving || isRendering ? "" : "hidden"}>
         <span className="banner-spinner" />
         {t("loadingExactDatesBanner")}
       </div>

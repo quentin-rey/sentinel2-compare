@@ -8,7 +8,7 @@ import { useToasts } from "./hooks/useToasts";
 import { useDisablePinchZoom } from "./hooks/useDisablePinchZoom";
 import { useGeocodeSearch } from "./hooks/useGeocodeSearch";
 import { useTranslation } from "./hooks/useLanguage";
-import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, type RenderMode } from "./lib/config";
+import { DEFAULT_MAX_CLOUD, DEFAULT_WINDOW_DAYS, RENDER_MODE_BANDS, type RenderMode } from "./lib/config";
 import type { ScenePriority, Bbox } from "./lib/earthSearch";
 import { getSceneAssets } from "./lib/earthSearch";
 import type { PlaceResult } from "./lib/geocode";
@@ -73,6 +73,10 @@ function bboxOf(mapInstance: MapLibreMap): Bbox {
   return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()];
 }
 
+function oneOf<T extends string>(value: string | null, allowed: readonly T[], fallback: T): T {
+  return allowed.includes(value as T) ? (value as T) : fallback;
+}
+
 function isFormField(el: EventTarget | null): boolean {
   return el instanceof HTMLElement && ["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName);
 }
@@ -91,8 +95,11 @@ export default function App() {
       zoom: params.has("zoom") ? Number(params.get("zoom")) : 9,
       date1: params.get("d1") || oneYearAgo.toISOString().slice(0, 10),
       date2: params.get("d2") || today.toISOString().slice(0, 10),
-      mode: (params.get("mode") as RenderMode) || "true-color",
-      priority: (params.get("priority") as ScenePriority) || "closest",
+      // Validated, not just cast: a hand-edited or truncated shared link with
+      // an unknown mode would otherwise reach the tile renderer as-is
+      // (RENDER_MODE_BANDS[mode] undefined) and blank every tile.
+      mode: oneOf(params.get("mode"), Object.keys(RENDER_MODE_BANDS) as RenderMode[], "true-color"),
+      priority: oneOf(params.get("priority"), ["closest", "leastcloud"] as ScenePriority[], "closest"),
       maxCloud: params.get("cc") || String(DEFAULT_MAX_CLOUD),
       windowDays: params.get("w") || String(DEFAULT_WINDOW_DAYS),
       showDepartements: params.get("dep") === "1",
@@ -395,6 +402,16 @@ export default function App() {
   // doesn't need explicit cleanup.
   const loadedMapsRef = useRef(new WeakSet<MapLibreMap>());
 
+  // Latest toggle state, read by the async overlay adds below once their
+  // (first, uncached) GeoJSON fetch resolves; the effect's own closure
+  // would still see the value from when the fetch started.
+  const overlayTogglesRef = useRef({ showDepartements, showWorldBorders });
+  overlayTogglesRef.current = { showDepartements, showWorldBorders };
+  function isCurrentMap(map: MapLibreMap): boolean {
+    const inst = compareMaps.instancesRef.current;
+    return inst.mapA === map || inst.mapB === map;
+  }
+
   // Applies the current départements/villes/world-borders toggle state (and
   // their opacity/population/etc. controls) to whichever compare-mode map
   // instances currently exist. Only mapA/mapB ever get these overlays — the
@@ -425,7 +442,10 @@ export default function App() {
     );
     for (const map of maps) {
       const apply = () => {
-        if (showDepartements) void addDepartementsLayer(map, departementsOpacity).then(() => applyDepartementsOpacity(map, departementsOpacity));
+        if (showDepartements)
+          void addDepartementsLayer(map, departementsOpacity, () => overlayTogglesRef.current.showDepartements && isCurrentMap(map)).then(() => {
+            if (isCurrentMap(map)) applyDepartementsOpacity(map, departementsOpacity);
+          });
         else removeDepartementsLayer(map);
         if (showVilles) {
           const isNew = addVillesLayer(map, { color: villesTextColor, halo: villesHalo, sizeScale: villesSizeScale });
@@ -437,7 +457,10 @@ export default function App() {
         } else {
           removeVillesLayer(map);
         }
-        if (showWorldBorders) void addWorldBordersLayer(map, worldBordersOpacity).then(() => applyWorldBordersOpacity(map, worldBordersOpacity));
+        if (showWorldBorders)
+          void addWorldBordersLayer(map, worldBordersOpacity, () => overlayTogglesRef.current.showWorldBorders && isCurrentMap(map)).then(() => {
+            if (isCurrentMap(map)) applyWorldBordersOpacity(map, worldBordersOpacity);
+          });
         else removeWorldBordersLayer(map);
       };
       if (loadedMapsRef.current.has(map) || map.isStyleLoaded()) {
