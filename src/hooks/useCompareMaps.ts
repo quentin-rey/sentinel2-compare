@@ -6,7 +6,9 @@ import type { SceneAssets } from "../lib/cogRaster";
 import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import { NiceScaleControl } from "../lib/scaleControl";
-import { firstAdminLayerId } from "../lib/adminLayers";
+import { ADMIN_LAYER_IDS } from "../lib/adminLayers";
+import { WORLD_BORDER_LAYER_IDS } from "../lib/worldBordersLayer";
+import { firstOverlayLayerId } from "../lib/overlayLayers";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
 import { useTranslation, type TFunction } from "./useLanguage";
@@ -228,10 +230,14 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       // Every reload (initial display, render-mode change, manual date pick)
       // re-adds this layer from scratch — addLayer() with no beforeId always
       // appends at the very top, which would bury an already-present
-      // départements/villes overlay (lib/adminLayers.ts) under the new
-      // imagery. Inserting just below the lowest overlay layer (if any)
-      // keeps those overlays on top regardless of load order.
-      mapInstance.addLayer({ id: layerId, type: "raster", source: key }, firstAdminLayerId(mapInstance));
+      // départements/villes (lib/adminLayers.ts) or world-borders
+      // (lib/worldBordersLayer.ts) overlay under the new imagery. Inserting
+      // just below the lowest overlay layer (if any) keeps those overlays
+      // on top regardless of load order.
+      mapInstance.addLayer(
+        { id: layerId, type: "raster", source: key },
+        firstOverlayLayerId(mapInstance, [...ADMIN_LAYER_IDS, ...WORLD_BORDER_LAYER_IDS]),
+      );
       return idle;
     },
     [],

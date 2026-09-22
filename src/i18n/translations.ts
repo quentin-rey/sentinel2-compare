@@ -46,6 +46,7 @@ export interface Translations {
   layerVillesColorLabel: string;
   layerVillesHaloLabel: string;
   layerVillesSizeLabel: string;
+  layerWorldBordersLabel: string;
 
   // Compare form
   date1Label: string;
@@ -222,6 +223,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     layerVillesColorLabel: "Couleur du texte",
     layerVillesHaloLabel: "Contour",
     layerVillesSizeLabel: "Taille du texte",
+    layerWorldBordersLabel: "Frontières (pays / états)",
 
     date1Label: "Date 1 (avant)",
     date2Label: "Date 2 (après)",
@@ -392,6 +394,7 @@ export const translations: Record<"fr" | "en", Translations> = {
     layerVillesColorLabel: "Text color",
     layerVillesHaloLabel: "Outline",
     layerVillesSizeLabel: "Text size",
+    layerWorldBordersLabel: "Borders (countries / states)",
 
     date1Label: "Date 1 (before)",
     date2Label: "Date 2 (after)",
