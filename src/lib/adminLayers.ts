@@ -15,25 +15,8 @@ const VILLES_SOURCE = "villes-src";
 const VILLES_CIRCLE_LAYER = "villes-circle";
 const VILLES_LABEL_LAYER = "villes-label";
 
-// Bottommost-first: whichever of these exists lowest in the style's layer
-// stack is the one to insert new satellite-imagery layers *below* (see
-// firstAdminLayerId) so a reloaded scene never paints over these overlays.
-const ADMIN_LAYER_IDS = [DEPARTEMENTS_LINE_LAYER, VILLES_CIRCLE_LAYER, VILLES_LABEL_LAYER];
-
-// setSceneLayer (useCompareMaps.ts) re-adds the satellite raster layer from
-// scratch on every scene reload (initial display, render-mode change,
-// manual date pick) — `map.addLayer()` with no `beforeId` always appends at
-// the very top of the stack, which would bury an already-present
-// départements/villes overlay under the new imagery. Passing this as
-// `beforeId` inserts the raster right below the lowest overlay layer
-// instead, so the overlays stay on top no matter which one loads first.
-export function firstAdminLayerId(map: MapLibreMap): string | undefined {
-  const layers = map.getStyle()?.layers ?? [];
-  for (const layer of layers) {
-    if (ADMIN_LAYER_IDS.includes(layer.id)) return layer.id;
-  }
-  return undefined;
-}
+// Insertion-point role — see firstOverlayLayerId (lib/overlayLayers.ts).
+export const ADMIN_LAYER_IDS = [DEPARTEMENTS_LINE_LAYER, VILLES_CIRCLE_LAYER, VILLES_LABEL_LAYER];
 
 interface DepartementProperties {
   code: string;
