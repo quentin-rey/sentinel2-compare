@@ -301,13 +301,64 @@ function sampleBilinear(win: BandWindow, wxf: number, wyf: number): number {
   return top * (1 - fy) + bottom * fy;
 }
 
-// Core renderer: samples `scene`'s bands over an arbitrary Web Mercator
+interface SceneRenderCtx {
+  scene: SceneAssets;
+  utmDef: string;
+  utmBbox: [number, number, number, number];
+  windows: Record<string, BandWindow>;
+}
+
+// Precomputes each candidate scene's UTM reprojection of the requested
+// bbox and skips any scene whose footprint doesn't actually overlap it —
+// cheap (bbox math on an already-cached scene bbox), and keeps the
+// expensive part (readBandWindow's COG range reads, done next) limited to
+// the scenes that matter for this particular region. Most regions overlap
+// exactly one scene; more than one only near a same-day mosaic's tile seam
+// (see bestPerTile in lib/earthSearch.ts).
+async function relevantSceneContexts(
+  scenes: SceneAssets[],
+  bandKeys: string[],
+  bboxMerc: [number, number, number, number],
+  targetGsd: number,
+): Promise<SceneRenderCtx[]> {
+  const [minX, minY, maxX, maxY] = bboxMerc;
+  const contexts: SceneRenderCtx[] = [];
+  for (const scene of scenes) {
+    const utmDef = utmDefFor(scene.epsg);
+    const corners: [number, number][] = [
+      [minX, minY],
+      [maxX, minY],
+      [minX, maxY],
+      [maxX, maxY],
+    ].map((c) => proj4(WEB_MERCATOR, utmDef, c) as [number, number]);
+    const xs = corners.map((c) => c[0]);
+    const ys = corners.map((c) => c[1]);
+    const pad = (Math.max(...xs) - Math.min(...xs)) * 0.05;
+    const utmBbox: [number, number, number, number] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
+
+    const firstHref = scene.assets[bandKeys[0]];
+    if (firstHref) {
+      const sceneBbox = await getSceneBbox(firstHref);
+      if (!hasMeaningfulOverlap(utmBbox, sceneBbox, targetGsd)) continue;
+    }
+    contexts.push({ scene, utmDef, utmBbox, windows: {} });
+  }
+  return contexts;
+}
+
+// Core renderer: samples `scenes`'s bands over an arbitrary Web Mercator
 // bbox (meters, same convention as tileBoundsMeters) at an arbitrary output
 // resolution. renderTileRGBA (the MapLibre protocol's per-XYZ-tile path)
 // and the high-resolution direct export path both delegate here — a tile
 // is just the special case of a 256x256 bbox aligned to the XYZ grid.
+//
+// `scenes` is a same-day mosaic set (usually just one scene) — each output
+// pixel tries every scene in order and uses the first one with actual data
+// there, so a viewport spanning more than one MGRS tile gets filled in from
+// whichever of that day's tiles actually covers each part of it, instead of
+// a single scene leaving everything outside its own footprint blank.
 export async function renderRegionRGBA(
-  scene: SceneAssets,
+  scenes: SceneAssets[],
   mode: RenderMode,
   bboxMerc: [minX: number, minY: number, maxX: number, maxY: number],
   outputWidth: number,
@@ -315,42 +366,31 @@ export async function renderRegionRGBA(
   shouldCancel?: () => boolean,
 ): Promise<Uint8ClampedArray> {
   const bandKeys = RENDER_MODE_BANDS[mode];
-  const utmDef = utmDefFor(scene.epsg);
   const [minX, minY, maxX, maxY] = bboxMerc;
-
-  const corners: [number, number][] = [
-    [minX, minY],
-    [maxX, minY],
-    [minX, maxY],
-    [maxX, maxY],
-  ].map((c) => proj4(WEB_MERCATOR, utmDef, c) as [number, number]);
-  const xs = corners.map((c) => c[0]);
-  const ys = corners.map((c) => c[1]);
-  const pad = (Math.max(...xs) - Math.min(...xs)) * 0.05;
-  const utmBbox: [number, number, number, number] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
   const targetGsd = (maxX - minX) / outputWidth;
 
-  // Most tiles in a typical (zoomed-out) viewport fall entirely outside the
-  // ~110km scene footprint — skip reading every band entirely for those
-  // instead of paying for N wasted COG reads just to find out.
-  const firstHref = scene.assets[bandKeys[0]];
-  if (firstHref) {
-    const sceneBbox = await getSceneBbox(firstHref);
-    if (!hasMeaningfulOverlap(utmBbox, sceneBbox, targetGsd)) {
-      return new Uint8ClampedArray(outputWidth * outputHeight * 4);
-    }
+  // Most tiles in a typical (zoomed-out) viewport fall entirely outside any
+  // given ~110km scene footprint — skip reading every band entirely for
+  // scenes that don't overlap this region at all.
+  const contexts = await relevantSceneContexts(scenes, bandKeys, bboxMerc, targetGsd);
+  if (contexts.length === 0) {
+    return new Uint8ClampedArray(outputWidth * outputHeight * 4);
   }
 
   if (shouldCancel?.()) throw new Error("Rendu annulé (tuile plus nécessaire)");
 
-  const entries = await Promise.all(
-    bandKeys.map(async (key) => {
-      const href = scene.assets[key];
-      if (!href) throw new Error(`Asset manquant pour la bande "${key}"`);
-      return [key, await readBandWindow(href, targetGsd, utmBbox)] as const;
+  await Promise.all(
+    contexts.map(async (ctx) => {
+      const entries = await Promise.all(
+        bandKeys.map(async (key) => {
+          const href = ctx.scene.assets[key];
+          if (!href) throw new Error(`Asset manquant pour la bande "${key}"`);
+          return [key, await readBandWindow(href, targetGsd, ctx.utmBbox)] as const;
+        }),
+      );
+      ctx.windows = Object.fromEntries(entries);
     }),
   );
-  const windows: Record<string, BandWindow> = Object.fromEntries(entries);
 
   const out = new Uint8ClampedArray(outputWidth * outputHeight * 4);
   const bandsRaw: Record<string, number> = {};
@@ -369,50 +409,54 @@ export async function renderRegionRGBA(
     const my = maxY - ((py + 0.5) / outputHeight) * (maxY - minY);
     for (let px = 0; px < outputWidth; px++) {
       const mx = minX + ((px + 0.5) / outputWidth) * (maxX - minX);
-      const [ux, uy] = proj4(WEB_MERCATOR, utmDef, [mx, my]) as [number, number];
       const idx = (py * outputWidth + px) * 4;
 
-      let nodata = false;
-      for (const key of bandKeys) {
-        const win = windows[key];
-        const [wl, wb, wr, wt] = win.bboxUtm;
-        const wxf = ((ux - wl) / (wr - wl)) * win.width;
-        const wyf = ((wt - uy) / (wt - wb)) * win.height;
-        const wx = Math.floor(wxf);
-        const wy = Math.floor(wyf);
-        if (wx < 0 || wx >= win.width || wy < 0 || wy >= win.height) {
-          nodata = true;
+      let matched = false;
+      for (const ctx of contexts) {
+        const [ux, uy] = proj4(WEB_MERCATOR, ctx.utmDef, [mx, my]) as [number, number];
+        let nodata = false;
+        for (const key of bandKeys) {
+          const win = ctx.windows[key];
+          const [wl, wb, wr, wt] = win.bboxUtm;
+          const wxf = ((ux - wl) / (wr - wl)) * win.width;
+          const wyf = ((wt - uy) / (wt - wb)) * win.height;
+          const wx = Math.floor(wxf);
+          const wy = Math.floor(wyf);
+          if (wx < 0 || wx >= win.width || wy < 0 || wy >= win.height) {
+            nodata = true;
+            break;
+          }
+          // SCL (Scene Classification Layer) is a discrete class code
+          // (0-11), not a reflectance DN — interpolating it would produce
+          // meaningless fractional "classes" the cloud-class Set lookup in
+          // fire() would never match, so it always stays nearest-neighbor.
+          // Every other band scales by /10000 to get calibrated reflectance,
+          // and is bilinearly interpolated (issue #36) for a sharper render.
+          const dn = key === "scl" ? win.data[wy * win.width + wx] : sampleBilinear(win, wxf, wyf);
+          if (dn === 0) {
+            nodata = true;
+            break;
+          }
+          bandsRaw[key] = key === "scl" ? dn : dn / 10000;
+        }
+        if (!nodata) {
+          const [r, g, b] = renderPixel(mode, bandsRaw);
+          out[idx] = r;
+          out[idx + 1] = g;
+          out[idx + 2] = b;
+          out[idx + 3] = 255;
+          matched = true;
           break;
         }
-        // SCL (Scene Classification Layer) is a discrete class code
-        // (0-11), not a reflectance DN — interpolating it would produce
-        // meaningless fractional "classes" the cloud-class Set lookup in
-        // fire() would never match, so it always stays nearest-neighbor.
-        // Every other band scales by /10000 to get calibrated reflectance,
-        // and is bilinearly interpolated (issue #36) for a sharper render.
-        const dn = key === "scl" ? win.data[wy * win.width + wx] : sampleBilinear(win, wxf, wyf);
-        if (dn === 0) {
-          nodata = true;
-          break;
-        }
-        bandsRaw[key] = key === "scl" ? dn : dn / 10000;
       }
-      if (nodata) {
-        out[idx + 3] = 0;
-        continue;
-      }
-      const [r, g, b] = renderPixel(mode, bandsRaw);
-      out[idx] = r;
-      out[idx + 1] = g;
-      out[idx + 2] = b;
-      out[idx + 3] = 255;
+      if (!matched) out[idx + 3] = 0;
     }
   }
   return out;
 }
 
 function renderTileRGBA(
-  scene: SceneAssets,
+  scenes: SceneAssets[],
   mode: RenderMode,
   z: number,
   x: number,
@@ -421,7 +465,7 @@ function renderTileRGBA(
   shouldCancel?: () => boolean,
 ): Promise<Uint8ClampedArray> {
   const merc = tileBoundsMeters(z, x, y);
-  return renderRegionRGBA(scene, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], tileSize, tileSize, shouldCancel);
+  return renderRegionRGBA(scenes, mode, [merc.minX, merc.minY, merc.maxX, merc.maxY], tileSize, tileSize, shouldCancel);
 }
 
 async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number): Promise<ArrayBuffer> {
@@ -435,7 +479,7 @@ async function rgbaToPng(rgba: Uint8ClampedArray, width: number, height: number)
 }
 
 export async function renderTilePng(
-  scene: SceneAssets,
+  scenes: SceneAssets[],
   mode: RenderMode,
   z: number,
   x: number,
@@ -443,7 +487,7 @@ export async function renderTilePng(
   tileSize: number,
   shouldCancel?: () => boolean,
 ): Promise<ArrayBuffer> {
-  const rgba = await renderTileRGBA(scene, mode, z, x, y, tileSize, shouldCancel);
+  const rgba = await renderTileRGBA(scenes, mode, z, x, y, tileSize, shouldCancel);
   return rgbaToPng(rgba, tileSize, tileSize);
 }
 
@@ -453,12 +497,12 @@ export async function renderTilePng(
 // the on-screen WebGL canvas happens to be, unlike the old screen-capture
 // export path (see lib/exportHighRes.ts).
 export async function renderRegionPng(
-  scene: SceneAssets,
+  scenes: SceneAssets[],
   mode: RenderMode,
   bboxMerc: [minX: number, minY: number, maxX: number, maxY: number],
   outputWidth: number,
   outputHeight: number,
 ): Promise<ArrayBuffer> {
-  const rgba = await renderRegionRGBA(scene, mode, bboxMerc, outputWidth, outputHeight);
+  const rgba = await renderRegionRGBA(scenes, mode, bboxMerc, outputWidth, outputHeight);
   return rgbaToPng(rgba, outputWidth, outputHeight);
 }

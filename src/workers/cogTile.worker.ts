@@ -9,7 +9,9 @@ import type { RenderMode } from "../lib/config";
 export interface CogTileRequest {
   kind: "tile";
   id: number;
-  scene: SceneAssets;
+  // Same-day mosaic set (usually one scene) — see lib/cogRaster.ts's
+  // renderRegionRGBA for how multiple scenes get composited per pixel.
+  scenes: SceneAssets[];
   mode: RenderMode;
   z: number;
   x: number;
@@ -23,7 +25,7 @@ export interface CogTileRequest {
 export interface CogRegionRequest {
   kind: "region";
   id: number;
-  scene: SceneAssets;
+  scenes: SceneAssets[];
   mode: RenderMode;
   bboxMerc: [minX: number, minY: number, maxX: number, maxY: number];
   outputWidth: number;
@@ -70,8 +72,8 @@ self.onmessage = async (e: MessageEvent<CogRenderRequest>) => {
     const shouldCancel = req.kind === "tile" ? () => cancelledIds.has(req.id) : undefined;
     const buffer =
       req.kind === "tile"
-        ? await renderTilePng(req.scene, req.mode, req.z, req.x, req.y, req.tileSize, shouldCancel)
-        : await renderRegionPng(req.scene, req.mode, req.bboxMerc, req.outputWidth, req.outputHeight);
+        ? await renderTilePng(req.scenes, req.mode, req.z, req.x, req.y, req.tileSize, shouldCancel)
+        : await renderRegionPng(req.scenes, req.mode, req.bboxMerc, req.outputWidth, req.outputHeight);
     (self as unknown as Worker).postMessage({ id: req.id, buffer } satisfies CogTileResponse, [buffer]);
   } catch (err) {
     (self as unknown as Worker).postMessage({ id: req.id, error: err instanceof Error ? err.message : String(err) } satisfies CogTileResponse);
