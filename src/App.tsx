@@ -559,24 +559,27 @@ export default function App() {
     if (options.highRes && rotatedOrPitched) showToast(t("highResRotatedFallback"));
     else if (options.highRes && adminLayersActive) showToast(t("highResLayersFallback"));
 
-    let scene: SceneAssets | undefined;
+    let scenes: SceneAssets[] = [];
     if (highRes) {
       const infoA = compareMaps.renderStateA?.info;
-      scene = infoA?.found ? await getSceneAssets(infoA.bestProductId) : undefined;
-      if (!scene) {
+      if (infoA?.found) {
+        const resolved = await Promise.all(infoA.bestProductIds.map(getSceneAssets));
+        scenes = resolved.filter((a): a is SceneAssets => a !== undefined);
+      }
+      if (scenes.length === 0) {
         highRes = false;
         showToast(t("highResUnresolvedFallback"));
       }
     }
 
     try {
-      if (highRes && scene) {
+      if (highRes && scenes.length > 0) {
         setAnimatedBusy(true);
         setProgressText(t("generatingHighRes"));
         setProgressPercent(null);
         await exportHighResSingleImage({
           map: mapA,
-          scene,
+          scenes,
           mode,
           format: kind,
           filename: options.filename,
@@ -636,18 +639,18 @@ export default function App() {
         showToast(t("highResLayersFallback"));
       }
 
-      let sceneA: SceneAssets | undefined;
-      let sceneB: SceneAssets | undefined;
+      let scenesA: SceneAssets[] = [];
+      let scenesB: SceneAssets[] = [];
       if (highRes) {
         const infoA = compareMaps.renderStateA?.info;
         const infoB = compareMaps.renderStateB?.info;
-        const [assetsA, assetsB] = await Promise.all([
-          exportTarget !== "after" && infoA?.found ? getSceneAssets(infoA.bestProductId) : Promise.resolve(undefined),
-          exportTarget !== "before" && infoB?.found ? getSceneAssets(infoB.bestProductId) : Promise.resolve(undefined),
+        const [resolvedA, resolvedB] = await Promise.all([
+          exportTarget !== "after" && infoA?.found ? Promise.all(infoA.bestProductIds.map(getSceneAssets)) : Promise.resolve([]),
+          exportTarget !== "before" && infoB?.found ? Promise.all(infoB.bestProductIds.map(getSceneAssets)) : Promise.resolve([]),
         ]);
-        sceneA = assetsA;
-        sceneB = assetsB;
-        const missing = (exportTarget !== "after" && !sceneA) || (exportTarget !== "before" && !sceneB);
+        scenesA = resolvedA.filter((a): a is SceneAssets => a !== undefined);
+        scenesB = resolvedB.filter((a): a is SceneAssets => a !== undefined);
+        const missing = (exportTarget !== "after" && scenesA.length === 0) || (exportTarget !== "before" && scenesB.length === 0);
         if (missing) {
           highRes = false;
           showToast(t("highResUnresolvedFallback"));
@@ -662,8 +665,8 @@ export default function App() {
           await exportHighResCompareImage({
             mapA: inst.mapA,
             mapB: inst.mapB,
-            sceneA,
-            sceneB,
+            scenesA,
+            scenesB,
             mode,
             sliderFraction: inst.swipe.getPosition(),
             format: kind,

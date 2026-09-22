@@ -35,7 +35,9 @@ interface SceneInfo {
   tileCount: number;
   bestDate?: string;
   bestCloudCover?: number;
-  bestProductId?: string;
+  // Every same-day tile covering the query viewport (see bestPerTile) — the
+  // mosaic set the renderer composites. Never empty when found is true.
+  bestProductIds?: string[];
 }
 
 export interface SceneDate {
@@ -43,7 +45,7 @@ export interface SceneDate {
   cloudCover: number | null;
   tileCount: number;
   dayDiff: number;
-  productId: string;
+  productIds: string[];
 }
 
 interface LoadSceneDataResult {
@@ -124,7 +126,10 @@ export async function getSceneAssets(productId: string): Promise<SceneAssets | u
 
 interface DayEntry {
   date: string;
-  productId: string;
+  // One STAC item id per MGRS tile actually captured this exact day (see
+  // bestPerTile) — the mosaic set the renderer composites. tiles.size and
+  // productIds.length are always equal.
+  productIds: string[];
   tiles: Set<string>;
   cloudCover: number | null;
   dayDiff: number;
@@ -147,18 +152,10 @@ function bboxOverlapArea(a: Bbox, b: Bbox): number {
   return (east - west) * (north - south);
 }
 
-// A viewport straddling two adjacent MGRS tiles (common near a tile
-// boundary — e.g. central Paris sits right on the 31UDP/31UDQ seam) can get
-// same-day features from *both* tiles. The renderer only ever draws one
-// scene per side (setSceneLayer in useCompareMaps.ts has no multi-tile
-// compositing), so picking the wrong one leaves a real chunk of the
-// requested view blank with no indication why — the "(partial)" label only
-// tracks whether every tile *exists* that day, not which one got rendered.
-// Preferring whichever candidate's own footprint overlaps the query bbox
-// the most (ties broken by cloud cover) fixes the common case, though a
-// viewport that genuinely spans most of both tiles will still be missing
-// whichever half didn't get picked — true multi-tile compositing would be a
-// much bigger change.
+// Among same-tile candidates (normally just one, but a tile can be
+// reprocessed under a new baseline, yielding two STAC items for the same
+// day+tile), picks whichever footprint overlaps the query bbox the most,
+// ties broken by cloud cover.
 function chooseBestCandidate(bbox: Bbox, candidates: StacFeature[]): StacFeature {
   return candidates.reduce((best, candidate) => {
     const bestOverlap = bboxOverlapArea(bbox, best.bbox);
@@ -168,6 +165,30 @@ function chooseBestCandidate(bbox: Bbox, candidates: StacFeature[]): StacFeature
     const candidateCloud = candidate.properties["eo:cloud_cover"] ?? 100;
     return candidateCloud < bestCloud ? candidate : best;
   });
+}
+
+// A viewport straddling two adjacent MGRS tiles (common near a tile
+// boundary — e.g. central Paris sits right on the 31UDP/31UDQ seam) can get
+// same-day features from *both* tiles (issue #27). Returns one winning
+// candidate *per tile* — the renderer (cogRaster.ts's renderRegionRGBA)
+// composites every tile it's given, per output pixel, so handing it every
+// same-day tile instead of a single overall "best" one fills in the rest of
+// the requested view instead of leaving it blank. Deliberately same-day
+// only: mixing tiles from *different* days into one mosaic would silently
+// blend two different acquisition dates into a single "before"/"after"
+// image, undermining the exact-date-to-exact-date comparison this app
+// promises (see the discussion on issue #27) — a tile with no data on this
+// exact day is simply absent from the result, not backfilled from another
+// day.
+function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
+  const byTile = new Map<string, StacFeature[]>();
+  for (const c of candidates) {
+    const tile = tileCodeFromGridCode(c.properties["grid:code"], c.id);
+    const group = byTile.get(tile);
+    if (group) group.push(c);
+    else byTile.set(tile, [c]);
+  }
+  return [...byTile.values()].map((group) => chooseBestCandidate(bbox, group));
 }
 
 async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacFeature[]> {
@@ -234,10 +255,15 @@ export async function loadSceneData(
   }
 
   const days: DayEntry[] = [...byDay.values()].map((d) => {
+    // Representative cloud cover for the day (used for priority sorting and
+    // the label) is still the single best-overlap tile's — cloud cover is
+    // inherently per-tile, so there's no one meaningful scalar across a
+    // multi-tile mosaic; the best-covering tile's value is the closest
+    // proxy, same as before mosaicking existed.
     const best = chooseBestCandidate(bbox, d.candidates);
     return {
       date: d.date,
-      productId: best.id,
+      productIds: bestPerTile(bbox, d.candidates).map((f) => f.id),
       cloudCover: best.properties["eo:cloud_cover"] ?? 100,
       tiles: d.tiles,
       dayDiff: Math.abs(new Date(d.date + "T00:00:00Z").getTime() - target.getTime()) / 86400000,
@@ -259,7 +285,7 @@ export async function loadSceneData(
         tileCount: allTiles.size,
         bestDate: best.date,
         bestCloudCover: best.cloudCover!,
-        bestProductId: best.productId,
+        bestProductIds: best.productIds,
       };
     }
   } else {
@@ -276,7 +302,7 @@ export async function loadSceneData(
       tileCount: allTiles.size,
       bestDate: best.date,
       bestCloudCover: best.cloudCover ?? 100,
-      bestProductId: best.productId,
+      bestProductIds: best.productIds,
     };
   }
 
@@ -284,12 +310,12 @@ export async function loadSceneData(
   // more naturally in the picker dropdown than "closest first" jumping back
   // and forth across the target date.
   const dates: SceneDate[] = days
-    .map(({ date, cloudCover, tiles, dayDiff, productId }) => ({
+    .map(({ date, cloudCover, tiles, dayDiff, productIds }) => ({
       date,
       cloudCover,
       tileCount: tiles.size,
       dayDiff,
-      productId,
+      productIds,
     }))
     .sort((a, b) => a.date.localeCompare(b.date));
 

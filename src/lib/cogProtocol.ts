@@ -11,9 +11,11 @@ import type { RenderMode } from "./config";
 import type { CogTileRequest, CogTileResponse, CogCancelRequest } from "../workers/cogTile.worker";
 
 const SCENE_REGISTRY_LIMIT = 20;
-const sceneRegistry = new Map<string, SceneAssets>();
+// A same-day mosaic set (see lib/earthSearch.ts's bestPerTile) — usually
+// one scene, more than one only for a viewport spanning several MGRS tiles.
+const sceneRegistry = new Map<string, SceneAssets[]>();
 
-export function registerScene(key: string, assets: SceneAssets): void {
+export function registerScene(key: string, assets: SceneAssets[]): void {
   if (sceneRegistry.size >= SCENE_REGISTRY_LIMIT && !sceneRegistry.has(key)) {
     const oldest = sceneRegistry.keys().next().value;
     if (oldest !== undefined) sceneRegistry.delete(oldest);
@@ -93,8 +95,8 @@ export function registerCogProtocol(): void {
   addProtocol("s2cog", (params, abortController) => {
     const parsed = parseS2CogUrl(params.url);
     if (!parsed) return Promise.reject(new Error(`URL de tuile invalide: ${params.url}`));
-    const scene = sceneRegistry.get(parsed.sceneKey);
-    if (!scene) return Promise.reject(new Error(`Scène inconnue: ${parsed.sceneKey}`));
+    const scenes = sceneRegistry.get(parsed.sceneKey);
+    if (!scenes) return Promise.reject(new Error(`Scène inconnue: ${parsed.sceneKey}`));
 
     // A render can fail for reasons that have nothing to do with this tile
     // specifically — e.g. one flaky request in the burst of concurrent S3
@@ -133,7 +135,7 @@ export function registerCogProtocol(): void {
           },
         });
 
-        const request: CogTileRequest = { kind: "tile", id, scene, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y, tileSize: TILE_OUTPUT_SIZE };
+        const request: CogTileRequest = { kind: "tile", id, scenes, mode: parsed.mode, z: parsed.z, x: parsed.x, y: parsed.y, tileSize: TILE_OUTPUT_SIZE };
         worker.postMessage(request);
       });
 
