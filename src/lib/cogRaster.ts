@@ -230,13 +230,24 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
     // much smaller in pixels, so a snapped 256px-aligned window covers
     // proportionally more of it, landing on a bad internal tile boundary
     // more often and needing a few more, deeper insets to clear it.
+    //
+    // Most failures aren't that edge case at all, though (issue #89): under
+    // load, reads of windows right in the middle of an overview fail with
+    // the same "buffer error" and succeed on an immediate retry of the
+    // exact same window (measured: every one of them did). Insetting on
+    // the first failure turned each of those into a permanent 32px blank
+    // strip along the tile, cached like a success. So the same window gets
+    // SAME_WINDOW_RETRIES plain retries first, and only a window that keeps
+    // failing falls back to the inset path.
     const RETRY_INSET = 32;
-    const attemptRead = async (l: number, t: number, r: number, b: number, retriesLeft: number): Promise<BandWindow> => {
+    const SAME_WINDOW_RETRIES = 2;
+    const attemptRead = async (l: number, t: number, r: number, b: number, retriesLeft: number, sameWindowRetriesLeft = SAME_WINDOW_RETRIES): Promise<BandWindow> => {
       const windowBboxUtm: [number, number, number, number] = [bLeft + l / pxPerMx, bTop - b / pxPerMy, bLeft + r / pxPerMx, bTop - t / pxPerMy];
       try {
         const [data] = await img.readRasters({ window: [l, t, r, b], fillValue: 0 });
         return { data: data as unknown as ArrayLike<number>, width: r - l, height: b - t, bboxUtm: windowBboxUtm };
       } catch (err) {
+        if (sameWindowRetriesLeft > 0) return attemptRead(l, t, r, b, retriesLeft, sameWindowRetriesLeft - 1);
         const mid = Math.floor((l + r) / 2);
         const midV = Math.floor((t + b) / 2);
         const shrunkLeft = Math.min(l + RETRY_INSET, mid);
@@ -244,7 +255,10 @@ async function readBandWindow(href: string, targetGsd: number, utmBboxPadded: [n
         const shrunkRight = Math.max(r - RETRY_INSET, mid + 1);
         const shrunkBottom = Math.max(b - RETRY_INSET, midV + 1);
         if (retriesLeft > 0 && (shrunkLeft > l || shrunkTop > t || shrunkRight < r || shrunkBottom < b)) {
-          return attemptRead(shrunkLeft, shrunkTop, shrunkRight, shrunkBottom, retriesLeft - 1);
+          // No same-window retries at this point: a window that already
+          // failed 1 + SAME_WINDOW_RETRIES times is the genuine edge case,
+          // same inset-only behavior as before issue #89.
+          return attemptRead(shrunkLeft, shrunkTop, shrunkRight, shrunkBottom, retriesLeft - 1, 0);
         }
         // Fail safe rather than fail the whole tile — a read that still
         // fails after retrying degrades to "no data" for just this band/
