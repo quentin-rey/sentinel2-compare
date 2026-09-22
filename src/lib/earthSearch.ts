@@ -167,19 +167,31 @@ function chooseBestCandidate(bbox: Bbox, candidates: StacFeature[]): StacFeature
   });
 }
 
+// Hard cap on how many same-day tiles a single mosaic ever composites.
+// Without one, a dezoomed viewport (e.g. zoom 5-6, scanning a whole
+// coastline for a storm) can span 30-40+ MGRS tiles — each one needs its
+// own COG metadata fetch, band reads and per-pixel reprojection, and that
+// fan-out made the app effectively hang in production (never finishing the
+// initial render) rather than just being slow. 12 tiles is already a huge
+// mosaic (~4x the original single-scene footprint per side) and comfortably
+// covers the "wide event, not the whole continent" use case that motivated
+// mosaicking in the first place (issue #27) without the unbounded cost.
+const MAX_MOSAIC_TILES = 12;
+
 // A viewport straddling two adjacent MGRS tiles (common near a tile
 // boundary — e.g. central Paris sits right on the 31UDP/31UDQ seam) can get
 // same-day features from *both* tiles (issue #27). Returns one winning
-// candidate *per tile* — the renderer (cogRaster.ts's renderRegionRGBA)
-// composites every tile it's given, per output pixel, so handing it every
-// same-day tile instead of a single overall "best" one fills in the rest of
-// the requested view instead of leaving it blank. Deliberately same-day
-// only: mixing tiles from *different* days into one mosaic would silently
-// blend two different acquisition dates into a single "before"/"after"
-// image, undermining the exact-date-to-exact-date comparison this app
-// promises (see the discussion on issue #27) — a tile with no data on this
-// exact day is simply absent from the result, not backfilled from another
-// day.
+// candidate *per tile*, capped at MAX_MOSAIC_TILES and prioritized by
+// overlap with the query viewport — the renderer (cogRaster.ts's
+// renderRegionRGBA) composites every tile it's given, per output pixel, so
+// handing it every same-day tile instead of a single overall "best" one
+// fills in the rest of the requested view instead of leaving it blank.
+// Deliberately same-day only: mixing tiles from *different* days into one
+// mosaic would silently blend two different acquisition dates into a
+// single "before"/"after" image, undermining the exact-date-to-exact-date
+// comparison this app promises (see the discussion on issue #27) — a tile
+// with no data on this exact day is simply absent from the result, not
+// backfilled from another day.
 function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
   const byTile = new Map<string, StacFeature[]>();
   for (const c of candidates) {
@@ -188,7 +200,12 @@ function bestPerTile(bbox: Bbox, candidates: StacFeature[]): StacFeature[] {
     if (group) group.push(c);
     else byTile.set(tile, [c]);
   }
-  return [...byTile.values()].map((group) => chooseBestCandidate(bbox, group));
+  const winners = [...byTile.values()].map((group) => chooseBestCandidate(bbox, group));
+  if (winners.length <= MAX_MOSAIC_TILES) return winners;
+  return winners
+    .slice()
+    .sort((a, b) => bboxOverlapArea(bbox, b.bbox) - bboxOverlapArea(bbox, a.bbox))
+    .slice(0, MAX_MOSAIC_TILES);
 }
 
 async function querySceneList(bbox: Bbox, start: Date, end: Date): Promise<StacFeature[]> {
