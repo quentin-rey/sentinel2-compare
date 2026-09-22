@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import * as maplibregl from "maplibre-gl";
 import type { Map as MapLibreMap } from "maplibre-gl";
 import { getSceneAssets, loadSceneData, type Bbox, type SceneDate } from "../lib/earthSearch";
+import type { SceneAssets } from "../lib/cogRaster";
 import { registerScene, cogTileUrl, type TileLane } from "../lib/cogProtocol";
 import { createSwipe, type SwipeControl } from "../lib/swipe";
 import { NiceScaleControl } from "../lib/scaleControl";
-import { firstAdminLayerId } from "../lib/adminLayers";
+import { ADMIN_LAYER_IDS } from "../lib/adminLayers";
+import { WORLD_BORDER_LAYER_IDS } from "../lib/worldBordersLayer";
+import { firstOverlayLayerId } from "../lib/overlayLayers";
 import type { RenderMode } from "../lib/config";
 import { formatDate } from "../utils/format";
 import { useTranslation, type TFunction } from "./useLanguage";
@@ -21,7 +24,7 @@ export interface CompareOpts {
 // (STAC request itself failed — nothing renders for that side either way,
 // same as "not found", just for a different reason).
 type SceneInfoLike =
-  | { found: true; unknown?: false; bestDate: string; bestCloudCover: number; tileCount: number; count?: number; bestProductId: string }
+  | { found: true; unknown?: false; bestDate: string; bestCloudCover: number; tileCount: number; count?: number; bestProductIds: string[] }
   | { found: false; unknown?: false; count?: number; tileCount?: number }
   | { found: false; unknown: true };
 
@@ -201,11 +204,17 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   // runSingle await it so the big loading banner stays up for the whole
   // render, not just until the source is added.
   const setSceneLayer = useCallback(
-    async (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productId: string, lane: TileLane, setLoading: (loading: boolean) => void): Promise<void> => {
-      const assets = await getSceneAssets(productId);
-      if (!assets) return;
-      registerScene(productId, assets);
-      const url = cogTileUrl(productId, mode, lane);
+    async (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productIds: string[], lane: TileLane, setLoading: (loading: boolean) => void): Promise<void> => {
+      const resolved = await Promise.all(productIds.map(getSceneAssets));
+      const assets = resolved.filter((a): a is SceneAssets => a !== undefined);
+      if (assets.length === 0) return;
+      // A stable key regardless of input order — same mosaic set (e.g. from
+      // a re-run with the same dates/view) always resolves to the same
+      // scene registry entry / tile URL, so MapLibre doesn't needlessly
+      // rebuild the source when nothing actually changed.
+      const sceneKey = [...productIds].sort().join("+");
+      registerScene(sceneKey, assets);
+      const url = cogTileUrl(sceneKey, mode, lane);
       if (mapInstance.getSource(key)) {
         mapInstance.removeLayer(layerId);
         mapInstance.removeSource(key);
@@ -221,10 +230,14 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       // Every reload (initial display, render-mode change, manual date pick)
       // re-adds this layer from scratch — addLayer() with no beforeId always
       // appends at the very top, which would bury an already-present
-      // départements/villes overlay (lib/adminLayers.ts) under the new
-      // imagery. Inserting just below the lowest overlay layer (if any)
-      // keeps those overlays on top regardless of load order.
-      mapInstance.addLayer({ id: layerId, type: "raster", source: key }, firstAdminLayerId(mapInstance));
+      // départements/villes (lib/adminLayers.ts) or world-borders
+      // (lib/worldBordersLayer.ts) overlay under the new imagery. Inserting
+      // just below the lowest overlay layer (if any) keeps those overlays
+      // on top regardless of load order.
+      mapInstance.addLayer(
+        { id: layerId, type: "raster", source: key },
+        firstOverlayLayerId(mapInstance, [...ADMIN_LAYER_IDS, ...WORLD_BORDER_LAYER_IDS]),
+      );
       return idle;
     },
     [],
@@ -336,9 +349,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setLastOpts(opts);
 
       const renderPromises: Promise<void>[] = [];
-      if (infoA.found) renderPromises.push(setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading }))));
+      if (infoA.found) renderPromises.push(setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading }))));
       else setLabelA((s) => ({ ...s, loading: false }));
-      if (infoB.found) renderPromises.push(setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductId, "b", (loading) => setLabelB((s) => ({ ...s, loading }))));
+      if (infoB.found) renderPromises.push(setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductIds, "b", (loading) => setLabelB((s) => ({ ...s, loading }))));
       else setLabelB((s) => ({ ...s, loading: false }));
       await Promise.all(renderPromises);
       setIsResolving(false);
@@ -410,7 +423,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setRenderStateA({ requestedDate: date, info: infoA });
       setLastOpts(opts);
 
-      if (infoA.found) await setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
+      if (infoA.found) await setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
       else setLabelA((s) => ({ ...s, loading: false }));
       setIsResolving(false);
 
@@ -444,9 +457,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     (mode: RenderMode) => {
       const inst = instancesRef.current;
       if (!inst.mapA || !renderStateA?.info.found) return;
-      setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductId, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
+      setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
       if (inst.mapB && renderStateB?.info.found) {
-        setSceneLayer(inst.mapB, "layer-b", "src-b", mode, renderStateB.info.bestProductId, "b", (loading) => setLabelB((s) => ({ ...s, loading })));
+        setSceneLayer(inst.mapB, "layer-b", "src-b", mode, renderStateB.info.bestProductIds, "b", (loading) => setLabelB((s) => ({ ...s, loading })));
       }
     },
     [renderStateA, renderStateB, setSceneLayer],
@@ -466,7 +479,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       const chosen = dates.find((d) => d.date === dateStr);
       if (!mapInstance || !dateStr || !chosen) return;
 
-      setSceneLayer(mapInstance, layerId, key, mode, chosen.productId, side, (loading) => setLabel((s) => ({ ...s, loading })));
+      setSceneLayer(mapInstance, layerId, key, mode, chosen.productIds, side, (loading) => setLabel((s) => ({ ...s, loading })));
 
       const cloudCover = chosen.cloudCover ?? 0;
       const updatedInfo: SceneInfoLike = {
@@ -474,7 +487,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         bestDate: dateStr,
         bestCloudCover: cloudCover,
         tileCount: chosen.tileCount,
-        bestProductId: chosen.productId,
+        bestProductIds: chosen.productIds,
       };
       if (side === "a") setRenderStateA({ requestedDate: dateStr, info: updatedInfo });
       else setRenderStateB({ requestedDate: dateStr, info: updatedInfo });

@@ -37,6 +37,12 @@ import {
   DEFAULT_VILLES_SIZE_SCALE,
   refreshVilles,
 } from "./lib/adminLayers";
+import {
+  addWorldBordersLayer,
+  removeWorldBordersLayer,
+  setWorldBordersOpacity as applyWorldBordersOpacity,
+  DEFAULT_WORLD_BORDERS_OPACITY,
+} from "./lib/worldBordersLayer";
 import { CompareFormSection, type CompareStage } from "./components/CompareFormSection";
 import { AccordionSection } from "./components/AccordionSection";
 import { ExportSection, type ExportTarget } from "./components/ExportSection";
@@ -96,6 +102,8 @@ export default function App() {
       villesTextColor: params.get("villesColor") ? `#${params.get("villesColor")}` : DEFAULT_VILLES_TEXT_COLOR,
       villesHalo: params.has("villesHalo") ? params.get("villesHalo") === "1" : DEFAULT_VILLES_HALO,
       villesSizeScale: params.has("villesSize") ? Number(params.get("villesSize")) : DEFAULT_VILLES_SIZE_SCALE,
+      showWorldBorders: params.get("borders") === "1",
+      worldBordersOpacity: params.has("bordersOp") ? Number(params.get("bordersOp")) : DEFAULT_WORLD_BORDERS_OPACITY,
       // Distinct from merely having d1/d2 (those are always present once the
       // URL has ever been synced — see the effect below) — only restore
       // whichever of the three stages was actually active when this URL was
@@ -132,6 +140,8 @@ export default function App() {
   const [villesTextColor, setVillesTextColor] = useState(initial.villesTextColor);
   const [villesHalo, setVillesHalo] = useState(initial.villesHalo);
   const [villesSizeScale, setVillesSizeScale] = useState(initial.villesSizeScale);
+  const [showWorldBorders, setShowWorldBorders] = useState(initial.showWorldBorders);
+  const [worldBordersOpacity, setWorldBordersOpacity] = useState(initial.worldBordersOpacity);
   const [pendingExportKind, setPendingExportKind] = useState<ExportKind | null>(null);
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [animatedBusy, setAnimatedBusy] = useState(false);
@@ -234,6 +244,10 @@ export default function App() {
       params.set("villesColor", villesTextColor.replace(/^#/, ""));
       params.set("villesHalo", villesHalo ? "1" : "0");
       params.set("villesSize", villesSizeScale.toFixed(2));
+    }
+    if (showWorldBorders) {
+      params.set("borders", "1");
+      params.set("bordersOp", worldBordersOpacity.toFixed(2));
     }
     return params;
   }
@@ -375,17 +389,36 @@ export default function App() {
     wasOpenRef.current = compareMaps.isOpen;
   }, [compareMaps.isOpen, baseMap.mapRef]);
 
-  // Applies the current départements/villes toggle state (and their
-  // opacity/population controls) to whichever compare-mode map instances
-  // currently exist. Only mapA/mapB ever get these overlays — the base
-  // browsing map stays untouched, and the "Couches" section itself is only
-  // shown once a view is open (see the panel JSX below), so there's nothing
-  // to apply before that anyway. Re-runs on every toggle/slider change *and*
-  // whenever isOpen/isComparing/mapGeneration changes — compareMaps.instancesRef
-  // is a plain ref (not React state), so a fresh mapA/mapB pair built by
-  // runCompare/runSingle (e.g. re-running "Comparer" with new dates while
-  // already comparing, which leaves isOpen/isComparing unchanged) wouldn't
-  // otherwise be noticed, and the overlays would silently vanish on reload.
+  // Tracks which map instances have fired their (one-time-only) "load"
+  // event at least once — see the effect below. A WeakSet rather than a
+  // plain flag on the map object itself so a stale/removed map instance
+  // doesn't need explicit cleanup.
+  const loadedMapsRef = useRef(new WeakSet<MapLibreMap>());
+
+  // Applies the current départements/villes/world-borders toggle state (and
+  // their opacity/population/etc. controls) to whichever compare-mode map
+  // instances currently exist. Only mapA/mapB ever get these overlays — the
+  // base browsing map stays untouched, and the "Couches" section itself is
+  // only shown once a view is open (see the panel JSX below), so there's
+  // nothing to apply before that anyway. Re-runs on every toggle/slider
+  // change *and* whenever isOpen/isComparing/mapGeneration changes —
+  // compareMaps.instancesRef is a plain ref (not React state), so a fresh
+  // mapA/mapB pair built by runCompare/runSingle (e.g. re-running "Comparer"
+  // with new dates while already comparing, which leaves
+  // isOpen/isComparing unchanged) wouldn't otherwise be noticed, and the
+  // overlays would silently vanish on reload.
+  //
+  // Readiness check: maplibre's "load" event fires exactly once per map
+  // instance, ever — it is NOT a recurring "the style is currently settled"
+  // signal. A map whose raster source is still actively streaming tiles
+  // (e.g. a slow connection, or this effect re-running while the compare
+  // scene hasn't finished loading) can have isStyleLoaded() flip back to
+  // false long after "load" already fired once; re-registering
+  // map.once("load", apply) in that case waits for an event that will never
+  // come again, silently dropping the toggle. loadedMapsRef instead
+  // remembers, per map instance, whether "load" has *ever* fired — once it
+  // has, apply() is always safe to call directly (addSource/addLayer only
+  // truly require the style to have loaded once, not "fully settled").
   useEffect(() => {
     const maps = [compareMaps.instancesRef.current.mapA, compareMaps.instancesRef.current.mapB].filter(
       (m): m is MapLibreMap => m !== null,
@@ -404,9 +437,18 @@ export default function App() {
         } else {
           removeVillesLayer(map);
         }
+        if (showWorldBorders) void addWorldBordersLayer(map, worldBordersOpacity).then(() => applyWorldBordersOpacity(map, worldBordersOpacity));
+        else removeWorldBordersLayer(map);
       };
-      if (map.isStyleLoaded()) apply();
-      else map.once("load", apply);
+      if (loadedMapsRef.current.has(map) || map.isStyleLoaded()) {
+        loadedMapsRef.current.add(map);
+        apply();
+      } else {
+        map.once("load", () => {
+          loadedMapsRef.current.add(map);
+          apply();
+        });
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -417,6 +459,8 @@ export default function App() {
     villesTextColor,
     villesHalo,
     villesSizeScale,
+    showWorldBorders,
+    worldBordersOpacity,
     compareMaps.isOpen,
     compareMaps.isComparing,
     compareMaps.mapGeneration,
@@ -510,29 +554,32 @@ export default function App() {
     // #34). Same fallback-to-standard-capture treatment as a rotated/tilted
     // view, which has the same "can't be produced by direct COG sampling"
     // problem for a different reason.
-    const adminLayersActive = showDepartements || showVilles;
+    const adminLayersActive = showDepartements || showVilles || showWorldBorders;
     let highRes = Boolean(options.highRes) && !rotatedOrPitched && !adminLayersActive;
     if (options.highRes && rotatedOrPitched) showToast(t("highResRotatedFallback"));
     else if (options.highRes && adminLayersActive) showToast(t("highResLayersFallback"));
 
-    let scene: SceneAssets | undefined;
+    let scenes: SceneAssets[] = [];
     if (highRes) {
       const infoA = compareMaps.renderStateA?.info;
-      scene = infoA?.found ? await getSceneAssets(infoA.bestProductId) : undefined;
-      if (!scene) {
+      if (infoA?.found) {
+        const resolved = await Promise.all(infoA.bestProductIds.map(getSceneAssets));
+        scenes = resolved.filter((a): a is SceneAssets => a !== undefined);
+      }
+      if (scenes.length === 0) {
         highRes = false;
         showToast(t("highResUnresolvedFallback"));
       }
     }
 
     try {
-      if (highRes && scene) {
+      if (highRes && scenes.length > 0) {
         setAnimatedBusy(true);
         setProgressText(t("generatingHighRes"));
         setProgressPercent(null);
         await exportHighResSingleImage({
           map: mapA,
-          scene,
+          scenes,
           mode,
           format: kind,
           filename: options.filename,
@@ -584,7 +631,7 @@ export default function App() {
       // See handleSingleExportConfirm — high-res sampling never draws the
       // Villes/Départements layers, so fall back the same way it already
       // does for a rotated/tilted view (issue #34).
-      const adminLayersActive = showDepartements || showVilles;
+      const adminLayersActive = showDepartements || showVilles || showWorldBorders;
       let highRes = Boolean(options.highRes) && !rotatedOrPitched && !adminLayersActive;
       if (options.highRes && rotatedOrPitched) {
         showToast(t("highResRotatedFallback"));
@@ -592,18 +639,18 @@ export default function App() {
         showToast(t("highResLayersFallback"));
       }
 
-      let sceneA: SceneAssets | undefined;
-      let sceneB: SceneAssets | undefined;
+      let scenesA: SceneAssets[] = [];
+      let scenesB: SceneAssets[] = [];
       if (highRes) {
         const infoA = compareMaps.renderStateA?.info;
         const infoB = compareMaps.renderStateB?.info;
-        const [assetsA, assetsB] = await Promise.all([
-          exportTarget !== "after" && infoA?.found ? getSceneAssets(infoA.bestProductId) : Promise.resolve(undefined),
-          exportTarget !== "before" && infoB?.found ? getSceneAssets(infoB.bestProductId) : Promise.resolve(undefined),
+        const [resolvedA, resolvedB] = await Promise.all([
+          exportTarget !== "after" && infoA?.found ? Promise.all(infoA.bestProductIds.map(getSceneAssets)) : Promise.resolve([]),
+          exportTarget !== "before" && infoB?.found ? Promise.all(infoB.bestProductIds.map(getSceneAssets)) : Promise.resolve([]),
         ]);
-        sceneA = assetsA;
-        sceneB = assetsB;
-        const missing = (exportTarget !== "after" && !sceneA) || (exportTarget !== "before" && !sceneB);
+        scenesA = resolvedA.filter((a): a is SceneAssets => a !== undefined);
+        scenesB = resolvedB.filter((a): a is SceneAssets => a !== undefined);
+        const missing = (exportTarget !== "after" && scenesA.length === 0) || (exportTarget !== "before" && scenesB.length === 0);
         if (missing) {
           highRes = false;
           showToast(t("highResUnresolvedFallback"));
@@ -618,8 +665,8 @@ export default function App() {
           await exportHighResCompareImage({
             mapA: inst.mapA,
             mapB: inst.mapB,
-            sceneA,
-            sceneB,
+            scenesA,
+            scenesB,
             mode,
             sliderFraction: inst.swipe.getPosition(),
             format: kind,
@@ -900,6 +947,10 @@ export default function App() {
               onVillesHaloChange={setVillesHalo}
               villesSizeScale={villesSizeScale}
               onVillesSizeScaleChange={setVillesSizeScale}
+              showWorldBorders={showWorldBorders}
+              onShowWorldBordersChange={setShowWorldBorders}
+              worldBordersOpacity={worldBordersOpacity}
+              onWorldBordersOpacityChange={setWorldBordersOpacity}
             />
           </AccordionSection>
         )}
