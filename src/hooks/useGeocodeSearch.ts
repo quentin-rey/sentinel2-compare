@@ -12,14 +12,21 @@ export function useGeocodeSearch() {
       setResults([]);
       return;
     }
+    // Set by the cleanup below once the query has moved on: a slow
+    // response for an older query must not overwrite a newer one's results.
+    let stale = false;
     timeoutRef.current = window.setTimeout(async () => {
       try {
-        setResults(await searchPlaces(query));
+        const found = await searchPlaces(query);
+        if (!stale) setResults(found);
       } catch (err) {
         console.warn("Recherche de lieu indisponible:", err);
       }
     }, 450);
-    return () => window.clearTimeout(timeoutRef.current);
+    return () => {
+      stale = true;
+      window.clearTimeout(timeoutRef.current);
+    };
   }, [query]);
 
   function clear() {

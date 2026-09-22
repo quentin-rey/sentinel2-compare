@@ -62,6 +62,9 @@ export function createSwipe({ mapA, mapB, wrapEl, sliderEl, containerEl }: Creat
     const pct = position * 100;
     wrapEl.style.clipPath = `inset(0 0 0 ${pct}%)`;
     sliderEl.style.left = `${pct}%`;
+    // Kept in sync here (not as a static JSX prop) so screen readers
+    // announce the real position, not a fixed 50.
+    sliderEl.setAttribute("aria-valuenow", String(Math.round(pct)));
   }
 
   setPosition(0.5);

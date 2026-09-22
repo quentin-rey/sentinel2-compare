@@ -60,7 +60,6 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
         aria-label={t("compareSliderAriaLabel")}
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={50}
         onDoubleClick={resetSlider}
         className={isComparing ? "" : "hidden"}
       />

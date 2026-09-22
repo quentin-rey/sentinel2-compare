@@ -50,7 +50,13 @@ function loadGifLib(): Promise<GifConstructor> {
       const script = document.createElement("script");
       script.src = GIF_JS_URL;
       script.onload = () => resolve(window.GIF!);
-      script.onerror = () => reject(new Error("Impossible de charger la librairie d'export GIF."));
+      script.onerror = () => {
+        // Not cached as a permanent failure: one network hiccup would
+        // otherwise break GIF export for the rest of the session.
+        gifLibPromise = null;
+        script.remove();
+        reject(new Error("Impossible de charger la librairie d'export GIF."));
+      };
       document.head.appendChild(script);
     });
   }
@@ -68,7 +74,11 @@ function getGifWorkerBlobUrl(): Promise<string> {
         if (!res.ok) throw new Error(`Téléchargement du worker GIF échoué (HTTP ${res.status}).`);
         return res.text();
       })
-      .then((text) => URL.createObjectURL(new Blob([text], { type: "application/javascript" })));
+      .then((text) => URL.createObjectURL(new Blob([text], { type: "application/javascript" })))
+      .catch((err) => {
+        workerBlobUrlPromise = null; // same retry-on-next-export reasoning as loadGifLib
+        throw err;
+      });
   }
   return workerBlobUrlPromise;
 }

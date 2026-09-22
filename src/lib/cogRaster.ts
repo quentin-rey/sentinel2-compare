@@ -305,6 +305,9 @@ interface SceneRenderCtx {
   scene: SceneAssets;
   utmDef: string;
   utmBbox: [number, number, number, number];
+  // Output pixel size in this scene's UTM meters (≈ ground meters), see
+  // relevantSceneContexts for why this differs from the Mercator one.
+  targetGsd: number;
   windows: Record<string, BandWindow>;
 }
 
@@ -319,7 +322,7 @@ async function relevantSceneContexts(
   scenes: SceneAssets[],
   bandKeys: string[],
   bboxMerc: [number, number, number, number],
-  targetGsd: number,
+  outputWidth: number,
 ): Promise<SceneRenderCtx[]> {
   const [minX, minY, maxX, maxY] = bboxMerc;
   const contexts: SceneRenderCtx[] = [];
@@ -333,7 +336,15 @@ async function relevantSceneContexts(
     ].map((c) => proj4(WEB_MERCATOR, utmDef, c) as [number, number]);
     const xs = corners.map((c) => c[0]);
     const ys = corners.map((c) => c[1]);
-    const pad = (Math.max(...xs) - Math.min(...xs)) * 0.05;
+    const utmWidth = Math.max(...xs) - Math.min(...xs);
+    // Web Mercator stretches distances by 1/cos(latitude), so the Mercator
+    // pixel size overstates the ground resolution a render needs (x1.4 in
+    // France, x2 at 60°N), so pickOverview compared against it could settle
+    // on an overview a level coarser than needed (issue #36's blur, back
+    // through the side door): in high-res exports at any latitude, and
+    // even for plain tiles above ~58°. The UTM extent is ground distance.
+    const targetGsd = utmWidth / outputWidth;
+    const pad = utmWidth * 0.05;
     const utmBbox: [number, number, number, number] = [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad];
 
     const firstHref = scene.assets[bandKeys[0]];
@@ -341,7 +352,7 @@ async function relevantSceneContexts(
       const sceneBbox = await getSceneBbox(firstHref);
       if (!hasMeaningfulOverlap(utmBbox, sceneBbox, targetGsd)) continue;
     }
-    contexts.push({ scene, utmDef, utmBbox, windows: {} });
+    contexts.push({ scene, utmDef, utmBbox, targetGsd, windows: {} });
   }
   return contexts;
 }
@@ -367,12 +378,11 @@ export async function renderRegionRGBA(
 ): Promise<Uint8ClampedArray> {
   const bandKeys = RENDER_MODE_BANDS[mode];
   const [minX, minY, maxX, maxY] = bboxMerc;
-  const targetGsd = (maxX - minX) / outputWidth;
 
   // Most tiles in a typical (zoomed-out) viewport fall entirely outside any
   // given ~110km scene footprint — skip reading every band entirely for
   // scenes that don't overlap this region at all.
-  const contexts = await relevantSceneContexts(scenes, bandKeys, bboxMerc, targetGsd);
+  const contexts = await relevantSceneContexts(scenes, bandKeys, bboxMerc, outputWidth);
   if (contexts.length === 0) {
     return new Uint8ClampedArray(outputWidth * outputHeight * 4);
   }
@@ -385,7 +395,7 @@ export async function renderRegionRGBA(
         bandKeys.map(async (key) => {
           const href = ctx.scene.assets[key];
           if (!href) throw new Error(`Asset manquant pour la bande "${key}"`);
-          return [key, await readBandWindow(href, targetGsd, ctx.utmBbox)] as const;
+          return [key, await readBandWindow(href, ctx.targetGsd, ctx.utmBbox)] as const;
         }),
       );
       ctx.windows = Object.fromEntries(entries);

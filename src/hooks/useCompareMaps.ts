@@ -228,7 +228,13 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     async (mapInstance: MapLibreMap, layerId: string, key: string, mode: RenderMode, productIds: string[], lane: TileLane, setLoading: (loading: boolean) => void): Promise<void> => {
       const resolved = await Promise.all(productIds.map(getSceneAssets));
       const assets = resolved.filter((a): a is SceneAssets => a !== undefined);
-      if (assets.length === 0) return;
+      if (assets.length === 0) {
+        // Every item lookup failed (network): nothing will ever render,
+        // so the spinner the caller started must not be left running.
+        console.warn("Assets de scène introuvables:", productIds);
+        setLoading(false);
+        return;
+      }
       // A stable key regardless of input order — same mosaic set (e.g. from
       // a re-run with the same dates/view) always resolves to the same
       // scene registry entry / tile URL, so MapLibre doesn't needlessly

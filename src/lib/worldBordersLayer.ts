@@ -52,10 +52,12 @@ function loadStates(): Promise<GeoJSON.FeatureCollection> {
 // States render thinner/dimmer than countries so the hierarchy reads at a
 // glance without needing name labels (kept out of scope for v1, same as
 // départements' plain outline — only villes carry labels).
-export async function addWorldBordersLayer(map: MapLibreMap, opacity = DEFAULT_WORLD_BORDERS_OPACITY): Promise<void> {
+// `isStillWanted`: same in-flight toggle-off / map-teardown guard as
+// adminLayers.ts's addDepartementsLayer.
+export async function addWorldBordersLayer(map: MapLibreMap, opacity = DEFAULT_WORLD_BORDERS_OPACITY, isStillWanted: () => boolean = () => true): Promise<void> {
   if (map.getSource(COUNTRIES_SOURCE)) return;
   const [countries, states] = await Promise.all([loadCountries(), loadStates()]);
-  if (map.getSource(COUNTRIES_SOURCE)) return; // toggled off again while the fetch was in flight
+  if (!isStillWanted() || map.getSource(COUNTRIES_SOURCE)) return;
 
   map.addSource(STATES_SOURCE, { type: "geojson", data: states });
   map.addLayer({

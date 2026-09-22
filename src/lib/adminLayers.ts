@@ -98,10 +98,14 @@ function haloColorFor(textColor: string): string {
 // Boundaries only — no fill, no name labels, just a white outline whose
 // opacity the user controls (see setDepartementsOpacity) so it reads well
 // over any satellite render mode (true color, false color, wildfire...).
-export async function addDepartementsLayer(map: MapLibreMap, opacity = DEFAULT_DEPARTEMENTS_OPACITY): Promise<void> {
+// `isStillWanted` is checked once the (first, uncached) fetch resolves: the
+// toggle may have been switched back off, or the map torn down by a new
+// compare run, while it was in flight; adding the layer anyway would show
+// an overlay whose checkbox is unticked (or throw on a removed map).
+export async function addDepartementsLayer(map: MapLibreMap, opacity = DEFAULT_DEPARTEMENTS_OPACITY, isStillWanted: () => boolean = () => true): Promise<void> {
   if (map.getSource(DEPARTEMENTS_SOURCE)) return;
   const data = await loadDepartements();
-  if (map.getSource(DEPARTEMENTS_SOURCE)) return; // toggled off again while the fetch was in flight
+  if (!isStillWanted() || map.getSource(DEPARTEMENTS_SOURCE)) return;
   map.addSource(DEPARTEMENTS_SOURCE, { type: "geojson", data });
   map.addLayer({
     id: DEPARTEMENTS_LINE_LAYER,
@@ -263,7 +267,10 @@ export async function refreshVilles(maps: MapLibreMap[], viewBbox: [number, numb
   }
   const merged: CommuneCollection = { type: "FeatureCollection", features };
 
+  // Re-looked up rather than reusing `targets`' sources: the villes toggle
+  // may have been switched off (source removed) while the fetches above
+  // were in flight.
   for (const map of targets) {
-    (map.getSource(VILLES_SOURCE) as GeoJSONSource).setData(merged);
+    (map.getSource(VILLES_SOURCE) as GeoJSONSource | undefined)?.setData(merged);
   }
 }

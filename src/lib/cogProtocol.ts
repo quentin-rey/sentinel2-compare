@@ -20,6 +20,7 @@ export function registerScene(key: string, assets: SceneAssets[]): void {
     const oldest = sceneRegistry.keys().next().value;
     if (oldest !== undefined) sceneRegistry.delete(oldest);
   }
+  sceneRegistry.delete(key);
   sceneRegistry.set(key, assets);
 }
 
@@ -97,6 +98,13 @@ export function registerCogProtocol(): void {
     if (!parsed) return Promise.reject(new Error(`URL de tuile invalide: ${params.url}`));
     const scenes = sceneRegistry.get(parsed.sceneKey);
     if (!scenes) return Promise.reject(new Error(`Scène inconnue: ${parsed.sceneKey}`));
+    // Re-inserting marks this key as most recently used. registerScene's
+    // eviction drops the *oldest-inserted* key, and without this a side
+    // left untouched while the other side flips through 20+ dates would
+    // get its still-displayed scene evicted, blanking every tile it
+    // requests afterwards (pan/zoom) with "Scène inconnue".
+    sceneRegistry.delete(parsed.sceneKey);
+    sceneRegistry.set(parsed.sceneKey, scenes);
 
     // A render can fail for reasons that have nothing to do with this tile
     // specifically — e.g. one flaky request in the burst of concurrent S3
