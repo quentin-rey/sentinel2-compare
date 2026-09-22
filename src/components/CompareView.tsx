@@ -25,6 +25,7 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
     isOpen,
     isComparing,
     isResolving,
+    isRendering,
     labelA,
     labelB,
     datesA,
@@ -86,7 +87,7 @@ export function CompareView({ compare, mode, onManualDateChange }: Props) {
           </div>
         </div>
       )}
-      <div id="compare-loading-banner" className={isResolving ? "" : "hidden"}>
+      <div id="compare-loading-banner" className={isResolving || isRendering ? "" : "hidden"}>
         <span className="banner-spinner" />
         {t("loadingExactDatesBanner")}
       </div>

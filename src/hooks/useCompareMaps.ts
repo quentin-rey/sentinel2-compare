@@ -159,7 +159,30 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   // map instances currently exist" (App.tsx's admin-layers effect) can't
   // just depend on isOpen/isComparing — they need this to fire too.
   const [mapGeneration, setMapGeneration] = useState(0);
+  // isResolving: the STAC lookup is in flight; the form's buttons stay
+  // disabled only for that part. isRendering: the resolved scenes' tiles
+  // are still being decoded (can take 30-90s on a slow link); it keeps the
+  // banner up but no longer locks the form, so the user can change dates
+  // or re-run without waiting for every tile.
   const [isResolving, setIsResolving] = useState(false);
+  const [isRendering, setIsRendering] = useState(false);
+  // Bumped by every runCompare/runSingle/closeCompare: a render that
+  // finishes after a newer run started must not clear the newer run's
+  // banner.
+  const runGenerationRef = useRef(0);
+  // Latest render mode asked for. A mode change during the STAC lookup
+  // (before any layer exists for changeMode to swap) is otherwise lost:
+  // runCompare/runSingle would still add the layer with the mode captured
+  // when the run started.
+  const modeRef = useRef<RenderMode | null>(null);
+
+  const trackRender = useCallback((renders: Promise<void>[]) => {
+    const generation = runGenerationRef.current;
+    setIsRendering(true);
+    void Promise.all(renders).finally(() => {
+      if (runGenerationRef.current === generation) setIsRendering(false);
+    });
+  }, []);
   const [labelA, setLabelA] = useState<LabelState>(DEFAULT_LABEL);
   const [labelB, setLabelB] = useState<LabelState>(DEFAULT_LABEL);
   const [datesA, setDatesA] = useState<SceneDate[]>([]);
@@ -273,6 +296,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   const runCompare = useCallback(
     async (date1: string, date2: string, mode: RenderMode, opts: CompareOpts, view: CompareView) => {
       const { center, zoom, bearing, pitch, bbox } = view;
+      const generation = ++runGenerationRef.current;
+      modeRef.current = mode;
+      setIsRendering(false);
 
       setIsOpen(true);
       setIsComparing(true);
@@ -355,15 +381,16 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       }
 
       // Unlike the old WMTS renderer, there's no wide-window "instant
-      // preview" possible here — client-side rendering needs a specific
+      // preview" possible here: client-side rendering needs a specific
       // resolved scene's COGs before anything can be drawn at all. The
-      // banner (isResolving) now stays up through STAC lookup *and* actual
-      // tile rendering (awaits setSceneLayer's returned promise below),
-      // instead of dropping the instant the source is added — otherwise it
-      // disappeared right as the slow part (COG decode/reprojection) began,
-      // leaving the map looking stalled with no visible feedback.
+      // banner stays up through STAC lookup (isResolving) *and* tile
+      // rendering (isRendering, see trackRender) instead of dropping the
+      // instant the source is added, when the slow part only begins.
       setIsResolving(true);
       const [sceneA, sceneB] = await Promise.all([safeSceneData(bbox, date1, opts), safeSceneData(bbox, date2, opts)]);
+      // Closed (Escape) or superseded while the lookup was in flight: these
+      // maps are already removed, and the labels/dates belong to a newer run.
+      if (runGenerationRef.current !== generation) return { statusMessage: "", hasWarning: false };
       const infoA = sceneA.info as SceneInfoLike;
       const infoB = sceneB.info as SceneInfoLike;
 
@@ -377,12 +404,13 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setRenderStateB({ requestedDate: date2, info: infoB });
       setLastOpts(opts);
 
+      const renderMode = modeRef.current ?? mode;
       const renderPromises: Promise<void>[] = [];
-      if (infoA.found) renderPromises.push(setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading }))));
+      if (infoA.found) renderPromises.push(setSceneLayer(mapA, "layer-a", "src-a", renderMode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading }))));
       else setLabelA((s) => ({ ...s, loading: false }));
-      if (infoB.found) renderPromises.push(setSceneLayer(mapB, "layer-b", "src-b", mode, infoB.bestProductIds, "b", (loading) => setLabelB((s) => ({ ...s, loading }))));
+      if (infoB.found) renderPromises.push(setSceneLayer(mapB, "layer-b", "src-b", renderMode, infoB.bestProductIds, "b", (loading) => setLabelB((s) => ({ ...s, loading }))));
       else setLabelB((s) => ({ ...s, loading: false }));
-      await Promise.all(renderPromises);
+      trackRender(renderPromises);
       setIsResolving(false);
 
       const hasWarning = !infoA.found || !infoB.found;
@@ -391,7 +419,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         hasWarning,
       };
     },
-    [setSceneLayer, t, lang],
+    [setSceneLayer, trackRender, t, lang],
   );
 
   // Single-image display — the wizard's first step. Builds only mapA (no
@@ -402,6 +430,9 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   const runSingle = useCallback(
     async (date: string, mode: RenderMode, opts: CompareOpts, view: CompareView) => {
       const { center, zoom, bearing, pitch, bbox } = view;
+      const generation = ++runGenerationRef.current;
+      modeRef.current = mode;
+      setIsRendering(false);
 
       setIsOpen(true);
       setIsComparing(false);
@@ -445,6 +476,8 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
 
       setIsResolving(true);
       const sceneA = await safeSceneData(bbox, date, opts);
+      // Same stale-run guard as runCompare.
+      if (runGenerationRef.current !== generation) return { statusMessage: "", hasWarning: false };
       const infoA = sceneA.info as SceneInfoLike;
 
       const prefixSingle = t("labelSingle");
@@ -453,20 +486,22 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setRenderStateA({ requestedDate: date, info: infoA });
       setLastOpts(opts);
 
-      if (infoA.found) await setSceneLayer(mapA, "layer-a", "src-a", mode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
+      if (infoA.found) trackRender([setSceneLayer(mapA, "layer-a", "src-a", modeRef.current ?? mode, infoA.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading })))]);
       else setLabelA((s) => ({ ...s, loading: false }));
       setIsResolving(false);
 
       const hasWarning = !infoA.found;
       return { statusMessage: describeScene(prefixSingle, date, infoA, t, lang), hasWarning };
     },
-    [setSceneLayer, t, lang],
+    [setSceneLayer, trackRender, t, lang],
   );
 
   const closeCompare = useCallback(() => {
     setIsOpen(false);
     setIsComparing(false);
     setIsResolving(false);
+    runGenerationRef.current++;
+    setIsRendering(false);
     const inst = instancesRef.current;
     inst.swipe?.destroy();
     inst.mapA?.remove();
@@ -485,6 +520,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
   // swaps mapA alone in single mode, both sides once actually comparing.
   const changeMode = useCallback(
     (mode: RenderMode) => {
+      modeRef.current = mode;
       const inst = instancesRef.current;
       if (!inst.mapA || !renderStateA?.info.found) return;
       setSceneLayer(inst.mapA, "layer-a", "src-a", mode, renderStateA.info.bestProductIds, "a", (loading) => setLabelA((s) => ({ ...s, loading })));
@@ -556,6 +592,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
     isComparing,
     mapGeneration,
     isResolving,
+    isRendering,
     labelA,
     labelB,
     datesA,
