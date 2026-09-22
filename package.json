@@ -19,7 +19,7 @@
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.1",
+    "@playwright/test": "^1.63.0",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.17",
