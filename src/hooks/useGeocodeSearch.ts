@@ -8,10 +8,7 @@ export function useGeocodeSearch() {
 
   useEffect(() => {
     window.clearTimeout(timeoutRef.current);
-    if (query.trim().length < 3) {
-      setResults([]);
-      return;
-    }
+    if (query.trim().length < 3) return;
     // Set by the cleanup below once the query has moved on: a slow
     // response for an older query must not overwrite a newer one's results.
     let stale = false;
@@ -33,5 +30,7 @@ export function useGeocodeSearch() {
     setResults([]);
   }
 
-  return { query, setQuery, results, clear };
+  // Derived rather than cleared from the effect: a query too short to search
+  // simply shows no results, whatever the last completed search returned.
+  return { query, setQuery, results: query.trim().length < 3 ? [] : results, clear };
 }

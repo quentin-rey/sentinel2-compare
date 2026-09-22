@@ -5,7 +5,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "./styles/style.css";
 import App from "./App.tsx";
-import { LanguageProvider } from "./hooks/useLanguage";
+import { LanguageProvider } from "./components/LanguageProvider";
 import { registerCogProtocol } from "./lib/cogProtocol";
 
 // maplibre-gl 6's own worker (GeoJSON tiling, among other background work)

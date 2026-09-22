@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, type ReactNode } from "react";
-import { useLocalStorageState } from "./useLocalStorageState";
+import { useEffect, type ReactNode } from "react";
+import { useLocalStorageState } from "../hooks/useLocalStorageState";
+import { LanguageContext } from "../hooks/useLanguage";
 import { translations, type Lang, type Translations } from "../i18n/translations";
 
 const LANG_KEY = "s2compare-lang";
@@ -12,16 +13,6 @@ function detectDefaultLang(): Lang {
   if (typeof navigator === "undefined" || !navigator.language) return "fr";
   return navigator.language.toLowerCase().startsWith("fr") ? "fr" : "en";
 }
-
-export type TFunction = <K extends keyof Translations>(key: K, ...args: Translations[K] extends (p: infer P) => string ? [P] : []) => string;
-
-interface LanguageContextValue {
-  lang: Lang;
-  setLang: (lang: Lang) => void;
-  t: TFunction;
-}
-
-const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [stored, setStored] = useLocalStorageState(LANG_KEY, detectDefaultLang());
@@ -41,10 +32,4 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }
 
   return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
-}
-
-export function useTranslation(): LanguageContextValue {
-  const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error("useTranslation() must be used within a LanguageProvider");
-  return ctx;
 }
