@@ -63,6 +63,27 @@ function emptyStyle() {
   return { version: 8 as const, glyphs: "https://fonts.openmaptiles.org/{fontstack}/{range}.pbf", sources: {}, layers: [] };
 }
 
+// Shows the label's spinner not just during the initial scene resolution
+// (setSceneLayer's own setLoading calls) but any time this side's raster
+// source has to fetch/render new tiles afterwards — most commonly a zoom
+// change, which needs a different COG overview/window per tile and can
+// take a moment even once a scene is already showing (issue #80: zooming
+// gave no feedback while the new, higher-resolution tiles were still being
+// decoded, so a soft/blurry frame just sat there with no indication
+// anything was happening). "sourcedataloading" only fires for genuine new
+// tile work, not on every camera tick, and "idle" is MapLibre's own
+// "nothing left to load, for any source" signal — together they track
+// reality without polling. Registered once per map instance and left
+// active for its whole lifetime (not tied to any single setSceneLayer
+// call), since sourceKey ("src-a"/"src-b") stays stable across that
+// source's later remove/re-add cycles (mode change, manual date pick).
+function wireTileLoadingIndicator(map: MapLibreMap, sourceKey: string, setLabel: (updater: (s: LabelState) => LabelState) => void): void {
+  map.on("sourcedataloading", (e) => {
+    if (e.sourceId === sourceKey) setLabel((s) => ({ ...s, loading: true }));
+  });
+  map.on("idle", () => setLabel((s) => ({ ...s, loading: false })));
+}
+
 function describeScene(label: string, requestedDate: string, info: SceneInfoLike, t: TFunction, lang: Lang): string {
   const date = formatDate(requestedDate, lang);
   if (info.unknown) return t("sceneApprox", { label, date });
@@ -312,6 +333,8 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
         if (inst.swipe?.isSyncing()) return;
         optionsRef.current?.onMoveEnd?.(mapB);
       });
+      wireTileLoadingIndicator(mapA, "src-a", setLabelA);
+      wireTileLoadingIndicator(mapB, "src-b", setLabelB);
 
       await Promise.all([new Promise<void>((r) => mapA.on("load", () => r())), new Promise<void>((r) => mapB.on("load", () => r()))]);
 
@@ -410,6 +433,7 @@ export function useCompareMaps(options?: UseCompareMapsOptions) {
       setMapGeneration((g) => g + 1);
 
       mapA.on("moveend", () => optionsRef.current?.onMoveEnd?.(mapA));
+      wireTileLoadingIndicator(mapA, "src-a", setLabelA);
 
       await new Promise<void>((r) => mapA.on("load", () => r()));
 
