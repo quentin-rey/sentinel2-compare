@@ -15,6 +15,10 @@ interface Props {
   onVillesHaloChange: (value: boolean) => void;
   villesSizeScale: number;
   onVillesSizeScaleChange: (value: number) => void;
+  showWorldBorders: boolean;
+  onShowWorldBordersChange: (value: boolean) => void;
+  worldBordersOpacity: number;
+  onWorldBordersOpacityChange: (value: number) => void;
 }
 
 // Discrete population floor steps (log-ish spacing — population is heavily
@@ -53,6 +57,10 @@ export function LayersSection({
   onVillesHaloChange,
   villesSizeScale,
   onVillesSizeScaleChange,
+  showWorldBorders,
+  onShowWorldBordersChange,
+  worldBordersOpacity,
+  onWorldBordersOpacityChange,
 }: Props) {
   const { t, lang } = useTranslation();
   const numberFormat = new Intl.NumberFormat(lang === "fr" ? "fr-FR" : "en-US");
@@ -148,6 +156,30 @@ export function LayersSection({
                 onChange={(e) => onVillesSizeScaleChange(Number(e.target.value))}
               />
             </details>
+          </div>
+        )}
+      </div>
+
+      <div className={`layer-card${showWorldBorders ? " active" : ""}`}>
+        <div className="layer-card-header">
+          <span className="layer-card-title">{t("layerWorldBordersLabel")}</span>
+          <Switch checked={showWorldBorders} onChange={onShowWorldBordersChange} />
+        </div>
+        {showWorldBorders && (
+          <div className="layer-card-body">
+            <div className="layer-control-row">
+              <span>{t("layerOpacityLabel")}</span>
+              <span className="layer-control-value">{Math.round(worldBordersOpacity * 100)}%</span>
+            </div>
+            <input
+              type="range"
+              className="layer-range"
+              min={0}
+              max={1}
+              step={0.05}
+              value={worldBordersOpacity}
+              onChange={(e) => onWorldBordersOpacityChange(Number(e.target.value))}
+            />
           </div>
         )}
       </div>
