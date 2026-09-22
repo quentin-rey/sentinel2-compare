@@ -52,7 +52,7 @@ let nextRequestId = 0;
 // at export resolution, not a 256x256 tile), so they shouldn't compete
 // with in-progress pan/zoom tile rendering for the same workers.
 function renderRegionOnWorker(
-  scene: SceneAssets,
+  scenes: SceneAssets[],
   mode: RenderMode,
   bboxMerc: [number, number, number, number],
   outputWidth: number,
@@ -70,16 +70,16 @@ function renderRegionOnWorker(
       worker.terminate();
       reject(new Error(e.message || "Échec du rendu haute résolution"));
     };
-    const request: CogRegionRequest = { kind: "region", id, scene, mode, bboxMerc, outputWidth, outputHeight };
+    const request: CogRegionRequest = { kind: "region", id, scenes, mode, bboxMerc, outputWidth, outputHeight };
     worker.postMessage(request);
   });
 }
 
-async function renderHighResCanvas(map: MapLibreMap, scene: SceneAssets, mode: RenderMode, outputWidth: number): Promise<HTMLCanvasElement> {
+async function renderHighResCanvas(map: MapLibreMap, scenes: SceneAssets[], mode: RenderMode, outputWidth: number): Promise<HTMLCanvasElement> {
   const bboxMerc = bboxMercOfView(map);
   const srcCanvas = map.getCanvas();
   const outputHeight = Math.round(outputWidth * (srcCanvas.height / srcCanvas.width));
-  const buffer = await renderRegionOnWorker(scene, mode, bboxMerc, outputWidth, outputHeight);
+  const buffer = await renderRegionOnWorker(scenes, mode, bboxMerc, outputWidth, outputHeight);
   const bitmap = await createImageBitmap(new Blob([buffer], { type: "image/png" }));
   const canvas = document.createElement("canvas");
   canvas.width = outputWidth;
@@ -91,7 +91,7 @@ async function renderHighResCanvas(map: MapLibreMap, scene: SceneAssets, mode: R
 
 interface ExportHighResSingleImageOptions {
   map: MapLibreMap;
-  scene: SceneAssets;
+  scenes: SceneAssets[];
   mode: RenderMode;
   format?: ExportFormat;
   filename?: string;
@@ -109,7 +109,7 @@ interface ExportHighResSingleImageOptions {
  */
 export async function exportHighResSingleImage({
   map,
-  scene,
+  scenes,
   mode,
   format = "png",
   filename,
@@ -120,7 +120,7 @@ export async function exportHighResSingleImage({
 }: ExportHighResSingleImageOptions): Promise<void> {
   const mime = format === "jpeg" ? "image/jpeg" : "image/png";
   const ext = format === "jpeg" ? "jpg" : "png";
-  const canvas = await renderHighResCanvas(map, scene, mode, outputWidth);
+  const canvas = await renderHighResCanvas(map, scenes, mode, outputWidth);
   drawWatermark(canvas);
   if (scale) drawScaleBar(canvas, scale);
   if (labels) drawOverlayLabels(canvas, { ...labels, side: "before" });
@@ -131,11 +131,12 @@ export async function exportHighResSingleImage({
 interface ExportHighResOptions {
   mapA: MapLibreMap;
   mapB: MapLibreMap;
-  // Assets for the scene currently shown on each side — undefined if that
-  // side's exact scene couldn't be resolved (e.g. metadata lookup failed);
-  // only the side(s) actually needed for `target` must be provided.
-  sceneA?: SceneAssets;
-  sceneB?: SceneAssets;
+  // Same-day mosaic set for the scene currently shown on each side —
+  // undefined/empty if that side's exact scene couldn't be resolved (e.g.
+  // metadata lookup failed); only the side(s) actually needed for `target`
+  // must be provided.
+  scenesA?: SceneAssets[];
+  scenesB?: SceneAssets[];
   mode: RenderMode;
   sliderFraction: number;
   format?: ExportFormat;
@@ -150,8 +151,8 @@ interface ExportHighResOptions {
 export async function exportHighResCompareImage({
   mapA,
   mapB,
-  sceneA,
-  sceneB,
+  scenesA,
+  scenesB,
   mode,
   sliderFraction,
   format = "png",
@@ -169,18 +170,18 @@ export async function exportHighResCompareImage({
   let suffix: string;
   let side: ExportSide;
   if (target === "before") {
-    if (!sceneA) throw new Error("Scène « avant » non résolue — export haute résolution impossible.");
-    canvas = await renderHighResCanvas(mapA, sceneA, mode, outputWidth);
+    if (!scenesA?.length) throw new Error("Scène « avant » non résolue — export haute résolution impossible.");
+    canvas = await renderHighResCanvas(mapA, scenesA, mode, outputWidth);
     suffix = "avant";
     side = "before";
   } else if (target === "after") {
-    if (!sceneB) throw new Error("Scène « après » non résolue — export haute résolution impossible.");
-    canvas = await renderHighResCanvas(mapB, sceneB, mode, outputWidth);
+    if (!scenesB?.length) throw new Error("Scène « après » non résolue — export haute résolution impossible.");
+    canvas = await renderHighResCanvas(mapB, scenesB, mode, outputWidth);
     suffix = "apres";
     side = "after";
   } else {
-    if (!sceneA || !sceneB) throw new Error("Scènes non résolues — export haute résolution impossible.");
-    const [canvasA, canvasB] = await Promise.all([renderHighResCanvas(mapA, sceneA, mode, outputWidth), renderHighResCanvas(mapB, sceneB, mode, outputWidth)]);
+    if (!scenesA?.length || !scenesB?.length) throw new Error("Scènes non résolues — export haute résolution impossible.");
+    const [canvasA, canvasB] = await Promise.all([renderHighResCanvas(mapA, scenesA, mode, outputWidth), renderHighResCanvas(mapB, scenesB, mode, outputWidth)]);
     canvas = compositeCanvasesAt(canvasA, canvasB, sliderFraction);
     suffix = "comparaison";
     side = "both";
