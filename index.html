@@ -5,36 +5,100 @@
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%B0%EF%B8%8F%3C/text%3E%3C/svg%3E" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="color-scheme" content="light dark" />
-    <title>Sentinel-2 Compare</title>
+    <title>Comparateur d'images satellite avant/après · Sentinel-2 Compare</title>
     <meta
       name="description"
-      content="Comparez deux images satellite Sentinel-2 à des dates différentes sur une même zone, avec un curseur de comparaison géoréférencé. Gratuit, sans compte, 100% dans le navigateur."
+      content="Comparez deux images satellite Sentinel-2 d'un même lieu à deux dates, avec un curseur avant/après : incendies, inondations, urbanisation, déforestation. Gratuit, sans compte."
     />
+    <meta name="google-site-verification" content="3TWc0X0b2ql8GE1eBzq81iZZT9vNUZNFYPHinzKpsuM" />
     <link rel="canonical" href="https://quentin-rey.github.io/sentinel2-compare/" />
+    <link rel="alternate" hreflang="fr" href="https://quentin-rey.github.io/sentinel2-compare/?lang=fr" />
+    <link rel="alternate" hreflang="en" href="https://quentin-rey.github.io/sentinel2-compare/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://quentin-rey.github.io/sentinel2-compare/" />
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Sentinel-2 Compare" />
     <meta property="og:url" content="https://quentin-rey.github.io/sentinel2-compare/" />
-    <meta property="og:title" content="Sentinel-2 Compare" />
+    <meta property="og:title" content="Comparateur d'images satellite avant/après · Sentinel-2 Compare" />
     <meta
       property="og:description"
-      content="Comparez deux images satellite Sentinel-2 à des dates différentes sur une même zone, avec un curseur de comparaison géoréférencé. Gratuit, sans compte, 100% dans le navigateur."
+      content="Comparez deux images satellite Sentinel-2 d'un même lieu à deux dates, avec un curseur avant/après : incendies, inondations, urbanisation, déforestation. Gratuit, sans compte."
     />
     <meta property="og:image" content="https://quentin-rey.github.io/sentinel2-compare/og-image.jpg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:locale" content="fr_FR" />
+    <meta property="og:locale:alternate" content="en_US" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Sentinel-2 Compare" />
+    <meta name="twitter:title" content="Comparateur d'images satellite avant/après · Sentinel-2 Compare" />
     <meta
       name="twitter:description"
-      content="Comparez deux images satellite Sentinel-2 à des dates différentes sur une même zone, avec un curseur de comparaison géoréférencé."
+      content="Comparez deux images satellite Sentinel-2 d'un même lieu à deux dates, avec un curseur avant/après : incendies, inondations, urbanisation, déforestation. Gratuit, sans compte."
     />
     <meta name="twitter:image" content="https://quentin-rey.github.io/sentinel2-compare/og-image.jpg" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Sentinel-2 Compare",
+        "url": "https://quentin-rey.github.io/sentinel2-compare/",
+        "description": "Comparateur d'images satellite Sentinel-2 avant/après, gratuit et sans compte, qui fonctionne entièrement dans le navigateur.",
+        "applicationCategory": "Multimedia",
+        "operatingSystem": "Web",
+        "browserRequirements": "Requires JavaScript and WebGL",
+        "inLanguage": ["fr", "en"],
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "image": "https://quentin-rey.github.io/sentinel2-compare/og-image.jpg",
+        "author": { "@type": "Person", "name": "Quentin Rey", "url": "https://github.com/quentin-rey" },
+        "codeRepository": "https://github.com/quentin-rey/sentinel2-compare",
+        "featureList": [
+          "Curseur avant/après géoréférencé",
+          "Couleurs naturelles, fausses couleurs, HONC, feux, SWIR",
+          "Mosaïque automatique des tuiles du même jour",
+          "Export PNG, JPEG, GIF et WebM",
+          "Lien de partage de la vue"
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <!-- Static description for crawlers, link previews and screen readers.
+         Outside #root so React never clears it (Google indexes the rendered
+         page); visually hidden but still exposed to assistive tech
+         (.seo-static in style.css). Headings start at h2: the navbar's
+         "Sentinel-2 Compare" is the page's single h1. -->
+    <main class="seo-static">
+      <h2>Comparateur d'images satellite avant/après</h2>
+      <p>
+        Sentinel-2 Compare superpose deux images satellite Sentinel-2 d'un même lieu, prises à deux dates
+        différentes, avec un curseur avant/après géoréférencé. Gratuit, sans compte, entièrement dans le
+        navigateur.
+      </p>
+      <h3>À quoi ça sert</h3>
+      <ul>
+        <li>Suivre un incendie de forêt et sa cicatrice de brûlis</li>
+        <li>Mesurer l'étendue d'une inondation ou d'une crue</li>
+        <li>Observer l'urbanisation, un chantier ou une déforestation</li>
+        <li>Comparer l'état de cultures, de glaciers ou d'un littoral</li>
+      </ul>
+      <h3>Fonctionnalités</h3>
+      <ul>
+        <li>Images Sentinel-2 L2A (Copernicus), résolution 10 m, revisite environ tous les 5 jours</li>
+        <li>Rendus couleurs naturelles, fausses couleurs, HONC, détection des feux et SWIR</li>
+        <li>Choix de la date exacte, priorité à la date la plus proche ou au ciel le plus dégagé</li>
+        <li>Export PNG, JPEG haute résolution, GIF et vidéo WebM, lien de partage</li>
+      </ul>
+      <h3>Questions fréquentes</h3>
+      <h4>Les images sont-elles gratuites ?</h4>
+      <p>Oui. Les données Sentinel-2 du programme Copernicus sont libres, et l'outil ne demande aucun compte.</p>
+      <h4>D'où viennent les données ?</h4>
+      <p>Des fichiers Cloud-Optimized GeoTIFF publics hébergés sur AWS (Earth Search), lus directement par le navigateur.</p>
+      <p><a href="https://github.com/quentin-rey/sentinel2-compare">Code source sur GitHub</a> · <a href="?lang=en">English version</a></p>
+    </main>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
