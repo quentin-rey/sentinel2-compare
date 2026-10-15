@@ -32,6 +32,9 @@ Pages — no application backend.
   [geo.api.gouv.fr](https://geo.api.gouv.fr/) and a
   [community-maintained départements GeoJSON](https://github.com/gregoiredavid/france-geojson),
   both free and keyless (`lib/adminLayers.ts`).
+- **World borders overlay**: [Natural Earth](https://www.naturalearthdata.com/)
+  1:110m countries and states/provinces, public domain, served from
+  jsDelivr (`lib/worldBordersLayer.ts`).
 - **Swipe**: two overlaid MapLibre instances, camera-synchronized, with a
   CSS `clip-path` driven by a draggable slider.
 
@@ -43,18 +46,21 @@ the browser.
 ```
 src/
   lib/          pure functions / network calls (earthSearch, cogRaster,
-                cogProtocol, renderModes, geocode, adminLayers, exportImage,
-                exportHighRes, animatedExport, swipe, config) — no React
-                dependency
+                cogProtocol, renderModes, geocode, adminLayers,
+                worldBordersLayer, overlayLayers, exportImage, exportHighRes,
+                animatedExport, swipe, scale, scaleControl, config) — no
+                React dependency
   workers/      cogTile.worker.ts — off-main-thread COG decode/render
   hooks/        useBaseMap, useCompareMaps (the app's core: lifecycle of
                 the two MapLibre maps + slider), useTheme,
                 useMenuCollapsed, useToasts, useGeocodeSearch, useLanguage,
                 useLocalStorageState, useDisablePinchZoom
   i18n/         FR/EN translation dictionary
-  components/   Navbar, panel accordion sections, CompareView, modals
+  components/   Navbar, panel accordion sections, CompareView, modals,
+                LanguageProvider
   utils/        small formatting helpers
-tests/          Playwright suite (tests/e2e.spec.ts)
+tests/          Playwright suite (tests/e2e.spec.ts); unit tests live
+                next to their module (src/lib/*.test.ts, Vitest)
 ```
 
 ## Render modes
@@ -83,8 +89,10 @@ highlight the same way the original's `CLP` threshold did.
 
 ## Running locally
 
+Requires Node 24 (same as CI and the GitHub Pages deploy).
+
 ```bash
-npm install
+npm ci
 npm run dev
 ```
 
@@ -97,12 +105,20 @@ Other useful commands:
 npm run build       # production build in dist/
 npm run preview      # serve the production build locally
 npm run lint         # oxlint
-npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
+npm run test:unit    # Vitest unit tests
+npm run test:e2e     # Playwright suite (needs `npx playwright install chromium` once)
 ```
+
+The e2e suite hits the real Earth Search, S3 and Nominatim services, so a
+slow network can make a test time out; CI runs lint, build and unit tests.
 
 ## Features
 
+- Two-step flow: display one date first, then add a second date to compare
 - Georeferenced swipe comparison (synchronized pan/zoom between the two dates)
+- Same-day mosaic: when the view spans several Sentinel-2 tiles, every tile
+  captured that exact day is composited (up to 12, nearest the view center
+  first). Built for zoomed-in comparisons, not continent-scale views
 - 5 render modes (True Color, False Color, HONC, Wildfire, SWIR), rendered
   entirely client-side — no account or quota involved
 - "Closest date" selection priority (a preference, not an exclusion, on the
@@ -117,7 +133,9 @@ npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
   manually picked date from a label's dropdown, not just the sidebar's dates
 - Optional overlays: town names (positioned at the town hall, not the
   administrative centroid) and département boundaries, both togglable with
-  their own styling (population floor, text color/halo/size, line opacity)
+  their own styling (population floor, text color/halo/size, line opacity),
+  plus worldwide country and state/province borders
+- Loading indicator on each side while new tiles render (e.g. after zooming)
 - Distance scale: a live on-map control, and burned into every export at
   the correct scale for that export's own resolution
 - PNG/JPEG/GIF/WebM export with settings (size, quality, duration/smoothness
@@ -128,7 +146,8 @@ npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
   (`lib/exportHighRes.ts`) instead of capturing the on-screen canvas — see
   the note in Known limitations.
 - Light/dark/auto theme, collapsible panel, keyboard shortcuts, FR/EN
-  language toggle
+  language toggle (`?lang=fr` / `?lang=en` force a language, used by the
+  hreflang/sitemap entries; the bare URL auto-detects)
 
 ## Known limitations
 
@@ -148,6 +167,10 @@ npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
   instead of disappearing early. No fix planned beyond that for now —
   progressive (coarse-then-refined) rendering would help further but is a
   bigger change.
+- **Wide views**: the same-day mosaic is capped at 12 tiles, and a
+  zoomed-out view (zoom 5-6) can take minutes to render client-side. The
+  app is meant for zoomed-in comparisons; a storm-scale view would need
+  server-side pre-rendering.
 - **Nominatim**: rate-limited (~1 req/s), no key — fine for personal use
   but not for significant traffic.
 - **High-resolution export**: PNG/JPEG can render directly from the
@@ -155,8 +178,14 @@ npm run test:e2e     # Playwright suite (see tests/e2e.spec.ts)
   on-screen canvas, but only for a north-up, unpitched view (it samples an
   axis-aligned grid, which can't reproduce a rotated/tilted camera the way
   reading back the actual WebGL framebuffer can), and only when the
-  villes/départements overlays are off (that direct-COG render never draws
+  villes/départements/world-borders overlays are off (that direct-COG render never draws
   MapLibre's own vector layers) — falls back to the normal capture export
   automatically in either case, or if the exact scene can't be resolved.
   Not available for animated GIF/WebM export, which stay on the
   screen-capture path.
+
+## License
+
+Code under the [MIT License](LICENSE). The `docs/evalscripts/wildfire.js`
+reference script keeps its own CC BY 4.0 license (Pierre Markuse).
+Sentinel-2 imagery: Copernicus Sentinel data, free and open.
