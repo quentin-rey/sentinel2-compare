@@ -7,6 +7,11 @@
 // keep two full JSX blocks selected by `lang` instead.
 
 export interface Translations {
+  // Document <title> / meta description (kept in sync with index.html's
+  // static French defaults; see LanguageProvider)
+  metaTitle: string;
+  metaDescription: string;
+
   // Shared
   closeAriaLabel: string;
   menuToggleTooltip: string;
@@ -190,6 +195,9 @@ export interface Translations {
 
 export const translations: Record<"fr" | "en", Translations> = {
   fr: {
+    metaTitle: "Comparateur d'images satellite avant/après · Sentinel-2 Compare",
+    metaDescription:
+      "Comparez deux images satellite Sentinel-2 d'un même lieu à deux dates, avec un curseur avant/après : incendies, inondations, urbanisation, déforestation. Gratuit, sans compte.",
     closeAriaLabel: "Fermer",
     menuToggleTooltip: "Basculer le menu (touche M)",
     compareSliderAriaLabel: "Curseur de comparaison",
@@ -361,6 +369,9 @@ export const translations: Record<"fr" | "en", Translations> = {
     shareCopied: "Lien de partage copié dans le presse-papiers.",
   },
   en: {
+    metaTitle: "Before/after satellite image comparison · Sentinel-2 Compare",
+    metaDescription:
+      "Compare two Sentinel-2 satellite images of the same place at two dates with a before/after swipe slider: wildfires, floods, urban growth, deforestation. Free, no account.",
     closeAriaLabel: "Close",
     menuToggleTooltip: "Toggle menu (M key)",
     compareSliderAriaLabel: "Comparison slider",

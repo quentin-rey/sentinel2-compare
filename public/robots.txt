@@ -1,2 +1,6 @@
 User-agent: *
 Allow: /
+
+# Crawlers only read robots.txt at the domain root, so this file is
+# informative; the sitemap is submitted directly in Search Console.
+Sitemap: https://quentin-rey.github.io/sentinel2-compare/sitemap.xml
