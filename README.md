@@ -1,5 +1,9 @@
 # Sentinel-2 Compare
 
+<p align="center">
+  <img src="assets/img/cover.jpg" alt="Sentinel-2 Compare: before/after view of the 2022 La Teste-de-Buch wildfire" width="900" />
+</p>
+
 App for comparing two Sentinel-2 satellite images at different dates over
 the same area, with a georeferenced comparison slider (synchronized
 pan/zoom). React + TypeScript + Vite, deployed as a static site on GitHub
