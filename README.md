@@ -183,3 +183,9 @@ slow network can make a test time out; CI runs lint, build and unit tests.
   automatically in either case, or if the exact scene can't be resolved.
   Not available for animated GIF/WebM export, which stay on the
   screen-capture path.
+
+## License
+
+Code under the [MIT License](LICENSE). The `docs/evalscripts/wildfire.js`
+reference script keeps its own CC BY 4.0 license (Pierre Markuse).
+Sentinel-2 imagery: Copernicus Sentinel data, free and open.
