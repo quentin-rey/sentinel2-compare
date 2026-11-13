@@ -2,7 +2,7 @@
 
 ## Workflow git
 
-Règles générales dans `~/.claude/CLAUDE.md`. Pour ce dépôt, `main` est la branche de production : un push peut déclencher une mise en ligne, et GitHub ne la protège pas (offre gratuite, dépôt privé).
+Règles générales dans `~/.claude/CLAUDE.md`. Pour ce dépôt, `main` est la branche de production : tout merge déclenche le déploiement GitHub Pages. Le dépôt est public et `main` est protégé (check `ci` requis, branche à jour avec `main`, règle valable aussi pour les admins) : seul le passage par une pull request est possible.
 
 - Jamais de commit ni de push direct sur `main`, jamais de force-push.
 - Une branche par sujet depuis `origin/main` à jour : `git switch -c <type>/<sujet> origin/main`.
